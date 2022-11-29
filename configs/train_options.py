@@ -22,7 +22,9 @@ class BaseOptions():
         parser.add_argument('--min_depth_eval', type=float, default=1e-3)        
         parser.add_argument('--backbone', type=str, default='resnet34')        
         parser.add_argument('--slam_infer', action='store_true')        
-
+        parser.add_argument('--with_confidence', action='store_true')        
+        parser.add_argument('--port', default='23466', type=str,
+                            help='node rank for distributed training')
         return parser
 
 class TrainOptions(BaseOptions):

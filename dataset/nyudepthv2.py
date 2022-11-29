@@ -2,7 +2,7 @@ import os
 import cv2
 import torch
 import jpeg4py as jpeg
-import numpy as np
+import torch.distributed as dist
 
 from dataset.base_dataset import BaseDataset
 
@@ -28,8 +28,9 @@ class nyudepthv2(BaseDataset):
 
         self.filenames_list = self.readTXT(txt_path)
         phase = 'train' if is_train else 'test'
-        print("Dataset: NYU Depth V2")
-        print("# of %s images: %d" % (phase, len(self.filenames_list)))
+        if dist.get_rank() == 0:
+            print("Dataset: NYU Depth V2")
+            print("# of %s images: %d" % (phase, len(self.filenames_list)))
 
 
     def __len__(self):

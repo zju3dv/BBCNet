@@ -29,6 +29,22 @@ def positionalencoding2d(input):
 
     return pe
 
+def make_block(inchannels,midchannels,backbone='resnet34'):
+    if backbone == 'resnet34':
+        downsample = None
+        if inchannels !=midchannels:
+            downsample = nn.Sequential(
+                nn.Conv2d(inchannels, midchannels,
+                            kernel_size=1, stride=1, bias=False),
+                nn.BatchNorm2d(midchannels), #NN.BatchNorm2d
+            )
+        block = BasicBlock(inchannels,midchannels,downsample = downsample)
+        return block
+    else:
+        block = InvertedResidual(inchannels,inchannels * 2,midchannels,3,1,False,True)
+        return block
+
+
 class Decoder(nn.Module):
     def __init__(self,args):
         super(Decoder, self).__init__()
@@ -45,10 +61,9 @@ class Decoder(nn.Module):
 
         self.upfactors = [2,2,2,2]
         self.outchannels = 24
+        self.args = args
 
-        # self.weight_channel = 64
-
-        self.conv = FTB(inchannels=self.inchannels[3], midchannels=self.midchannels[3])
+        self.conv = make_block(inchannels=self.inchannels[3], midchannels=self.midchannels[3])
         self.conv1 = nn.Conv2d(in_channels=self.midchannels[3], out_channels=self.midchannels[2], kernel_size=3, padding=1, stride=1, bias=True)
         # self.conv1 = nn.Conv2d(in_channels=self.midchannels[3], out_channels=self.midchannels[2], kernel_size=3, padding=2, stride=1, dilation = 2, bias=True)
         self.upsample = nn.Upsample(scale_factor=self.upfactors[3], mode='bilinear', align_corners=False)
@@ -56,13 +71,13 @@ class Decoder(nn.Module):
         self.ffmp2 = FFM(inchannels=self.inchannels[2], midchannels=self.midchannels[2], outchannels = self.midchannels[1], upfactor=self.upfactors[2])
         self.ffmp1 = FFM(inchannels=self.inchannels[1], midchannels=self.midchannels[1], outchannels = self.midchannels[0], upfactor=self.upfactors[1])
         self.ffmp0 = FFM(inchannels=self.inchannels[0], midchannels=self.midchannels[0], outchannels = self.midchannels[0], upfactor=self.upfactors[0])
-        self.ffmnp1 = FFM(inchannels=self.inchannels[0], midchannels=self.midchannels[0], outchannels = self.midchannels[0], upfactor=self.upfactors[0])
+        self.ffmp = FFM(self.initial_fusion_out, midchannels=self.midchannels[0], outchannels = self.outchannels, upfactor=1)
+        # self.ffmnp1 = FFM(inchannels=self.inchannels[0], midchannels=self.midchannels[0], outchannels = self.midchannels[0], upfactor=self.upfactors[0])
         
-        self.outconv = nn.Sequential(
-            FTB(self.initial_fusion_out + self.midchannels[0], midchannels=self.outchannels),
-            FTB(self.outchannels, midchannels=self.outchannels)
-        )
-        # self.outconv = AO(24 + self.midchannels[0], outchannels=self.outchannels, upfactor=1)
+        # self.outconv = nn.Sequential(
+        #     make_block(self.initial_fusion_out + self.midchannels[0], midchannels=self.outchannels,backbone=args.backbone),
+        #     make_block(self.outchannels, midchannels=self.outchannels,backbone=args.backbone)
+        # )
         self.adapt_conv_short = nn.Sequential(
             nn.BatchNorm2d(num_features=self.outchannels ),
             nn.Conv2d(self.outchannels , 24 + 18, kernel_size=1, stride=1, padding=0,bias=True),
@@ -71,16 +86,16 @@ class Decoder(nn.Module):
             nn.Conv2d(24 + 18,32 , kernel_size=1, stride=1, padding=0,bias=False),
             # nn.ReLU(inplace=True),
         )
-
-        self.adapt_conv1 = nn.Sequential(
-            FTB(self.initial_fusion_out + self.midchannels[0], midchannels=self.outchannels),
-            nn.BatchNorm2d(num_features=self.outchannels),
-            nn.Conv2d(self.outchannels, 24, kernel_size=1, stride=1, padding=0,bias=True),
-            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(24,1 , kernel_size=1, stride=1, padding=0,bias=False),
-            nn.Sigmoid(),
-        )
+        if self.args.with_confidence:
+            self.adapt_conv1 = nn.Sequential(
+                make_block(self.outchannels, midchannels=self.outchannels,backbone=args.backbone),
+                nn.BatchNorm2d(num_features=self.outchannels),
+                nn.Conv2d(self.outchannels, 24, kernel_size=1, stride=1, padding=0,bias=True),
+                nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.Conv2d(24,1 , kernel_size=1, stride=1, padding=0,bias=False),
+                nn.Sigmoid(),
+            )
 
         self.n_infer = 0
 
@@ -115,55 +130,14 @@ class Decoder(nn.Module):
         x_4 = positionalencoding2d(x_4) + x_4 # down
 
         x_2 = self.ffmp0(features[1], x_4)  # 1/2
-        x_2 = self.outconv(torch.cat((x_2,features[0]),dim=1))  # 1/2
+        # x_2 = self.outconv(torch.cat((x_2,features[0]),dim=1))  # 1/2
+        x_2_1 = self.ffmp(features[0],x_2)  # 1/2
 
-        x = self.adapt_conv_short(x_2)
-
-        x_22 = self.ffmnp1(features[1], x_4)
-
-        confidence = self.adapt_conv1(torch.cat((x_22,features[0]),dim=1))
+        x = self.adapt_conv_short(x_2_1)
+        confidence = torch.zeros_like(x[:,0:1])
+        if self.args.with_confidence:
+            confidence = self.adapt_conv1(x_2_1)
         return x,confidence
-
-
-class FTB(nn.Module):
-    def __init__(self, inchannels, midchannels):
-        super(FTB, self).__init__()
-        self.downsample = None
-        if inchannels !=midchannels:
-            self.downsample = nn.Sequential(
-                nn.Conv2d(inchannels, midchannels,
-                          kernel_size=1, stride=1, bias=False),
-                nn.BatchNorm2d(midchannels), #NN.BatchNorm2d
-            )
-        # self.all = InvertedResidual(inchannels,inchannels * 2,midchannels,3,1,False,True)
-        self.all = BasicBlock(inchannels,midchannels,downsample = self.downsample)
-
-        self.init_params()
-
-    def forward(self, x):
-
-        return self.all(x)
-
-    def init_params(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d):
-                init.normal_(m.weight, std=0.01)
-                if m.bias is not None:
-                    init.constant_(m.bias, 0)
-            elif isinstance(m, nn.ConvTranspose2d):
-                # init.kaiming_normal_(m.weight, mode='fan_out')
-                init.normal_(m.weight, std=0.01)
-                # init.xavier_normal_(m.weight)
-                if m.bias is not None:
-                    init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):  # NN.BatchNorm2d
-                init.constant_(m.weight, 1)
-                init.constant_(m.bias, 0)
-            elif isinstance(m, nn.Linear):
-                init.normal_(m.weight, std=0.01)
-                if m.bias is not None:
-                    init.constant_(m.bias, 0)
-
 
 class FFM(nn.Module):
     def __init__(self, inchannels, midchannels, outchannels, upfactor=2):
@@ -173,8 +147,8 @@ class FFM(nn.Module):
         self.outchannels = outchannels
         self.upfactor = upfactor
 
-        self.ftb1 = FTB(inchannels=self.inchannels , midchannels=self.midchannels )
-        self.ftb2 = FTB(inchannels=self.midchannels, midchannels=self.outchannels)
+        self.ftb1 = make_block(inchannels=self.inchannels , midchannels=self.midchannels)
+        self.ftb2 = make_block(inchannels=self.midchannels, midchannels=self.outchannels)
 
         self.upsample = nn.Upsample(scale_factor=self.upfactor, mode='bilinear', align_corners=False)
 
@@ -182,29 +156,22 @@ class FFM(nn.Module):
 
     def forward(self, low_x, high_x):
         x = self.ftb1(low_x)
-        # x = x + high_x
         x = x + high_x
-        # x = torch.cat([x,high_x],dim=1)
         x = self.ftb2(x)
         x = self.upsample(x)
-
         return x
 
     def init_params(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                # init.kaiming_normal_(m.weight, mode='fan_out')
                 init.normal_(m.weight, std=0.01)
-                # init.xavier_normal_(m.weight)
                 if m.bias is not None:
                     init.constant_(m.bias, 0)
             elif isinstance(m, nn.ConvTranspose2d):
-                # init.kaiming_normal_(m.weight, mode='fan_out')
                 init.normal_(m.weight, std=0.01)
-                # init.xavier_normal_(m.weight)
                 if m.bias is not None:
                     init.constant_(m.bias, 0)
-            elif isinstance(m, nn.BatchNorm2d):  # NN.Batchnorm2d
+            elif isinstance(m, nn.BatchNorm2d):
                 init.constant_(m.weight, 1)
                 init.constant_(m.bias, 0)
             elif isinstance(m, nn.Linear):
