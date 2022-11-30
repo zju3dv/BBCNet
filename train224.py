@@ -61,7 +61,7 @@ def main_worker(gpu, nprocs, args, model):
     device = torch.device('cuda')
     # model = torch.nn.DataParallel(model, device_ids=[i for i in range(len(device_ids))])
     # model = torch.nn.DataParallel(model)
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    # model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(dist.get_rank())
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[dist.get_rank()])#,find_unused_parameters=True)
 
@@ -136,7 +136,7 @@ def train(train_loader, model, criterion_d, optimizer, device, epoch, args):
     depth_loss = logging.AverageMeter()
 
     train_loader.dataset.epoch = 100
-    train_loader.dataset.basic_transform[1].width,train_loader.dataset.basic_transform[1].height = (224,208)
+    train_loader.dataset.basic_transform[1].width,train_loader.dataset.basic_transform[1].height = (224,224)
 
     train_loader.sampler.set_epoch(epoch)
 
@@ -276,11 +276,4 @@ if __name__ == '__main__':
         model.encoder_modules.load_state_dict(checkpoint,strict=False)
         print("mobilenet3 loaded")
 
-    spawn_context = mp.spawn(main_worker, nprocs=gpus_num, args=(gpus_num, train_args,model))
-    while not spawn_context.join():
-        pass
-
-    for process in spawn_context.processes:
-        if process.is_alive():
-            process.terminate()
-        process.join()
+    mp.spawn(main_worker, nprocs=gpus_num, args=(gpus_num, train_args,model))

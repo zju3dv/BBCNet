@@ -21,7 +21,7 @@ class BaseDataset(Dataset):
         
         self.count = 0
         linear_transform = [
-            A.geometric.RandomScale(scale_limit=(0,0.2), interpolation=cv2.INTER_AREA, always_apply=True),
+            A.geometric.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
             A.geometric.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
         ]
         self.linear_transform = linear_transform    

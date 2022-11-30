@@ -4,12 +4,12 @@ def solve(sparse_depth,x):
     cond_sum = torch.zeros_like(x[0,0,0,0])
     out = []
     B,C,H,W = x.shape
-    min_solvable_number = 16
+    min_solvable_number = 20
     for i in range(sparse_depth.shape[0]):
         mask = sparse_depth[i] > 0 # H,W
         mask = mask.detach()
         if(mask.sum() < min_solvable_number):
-            out.append(x[i].sum(dim=0).view(1,1,H,W).detach())
+            out.append(x[i].sum(dim=0).view(1,1,H,W))
             continue
         sd = sparse_depth[i][mask] # HW
             
