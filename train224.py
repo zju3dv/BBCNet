@@ -7,7 +7,6 @@ from datetime import datetime
 import torch
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
-import torch.multiprocessing as mp
 import torch.distributed as dist
 
 from model.MBNet import DepthModel
@@ -21,7 +20,6 @@ import utils.logging as logging
 
 from dataset.base_dataset import get_dataset
 from configs.train_options import TrainOptions
-import utils.manager_torch_gpu as manager_torch_gpu
 
 metric_name = ['d1', 'd2', 'd3', 'abs_rel', 'sq_rel', 'rmse', 'rmse_log',
                'log10', 'silog']
@@ -37,11 +35,10 @@ def setup_seed(seed):
 
 
 def main_worker(gpu, nprocs, args, model):
-    exp_name = '%s_%s' % (datetime.now().strftime('%m%d%H%M%S'), args.exp_name)
-    log_dir = os.path.join(args.log_dir, args.dataset, exp_name)
-    log_txt = os.path.join(log_dir, 'logs.txt')  
-
     if gpu == 0:
+        exp_name = '%s_%s' % (datetime.now().strftime('%m%d%H%M%S'), args.exp_name)
+        log_dir = os.path.join(args.log_dir, args.dataset, exp_name)
+        log_txt = os.path.join(log_dir, 'logs.txt')  
         logging.check_and_make_dirs(log_dir)
         writer = SummaryWriter(log_dir=log_dir)
         logging.log_args_to_txt(log_txt, args)
@@ -53,12 +50,10 @@ def main_worker(gpu, nprocs, args, model):
         if not os.path.exists(code_dir):
             os.makedirs(code_dir)
         logging.backup_source_code(code_dir)
-    os.environ["MASTER_ADDR"] = 'localhost'
-    os.environ["MASTER_PORT"] = args.port
+
     dist.init_process_group(backend='nccl', world_size=nprocs, rank=gpu)
     torch.cuda.set_device(gpu)
 
-    device = torch.device('cuda')
     # model = torch.nn.DataParallel(model, device_ids=[i for i in range(len(device_ids))])
     # model = torch.nn.DataParallel(model)
     # model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
@@ -69,53 +64,48 @@ def main_worker(gpu, nprocs, args, model):
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
-    if args.dataset == 'nyudepthv2':
-        dataset_kwargs['crop_size'] = (384, 512)
-    else:
-        dataset_kwargs['crop_size'] = (args.crop_h, args.crop_w)
+    dataset_kwargs['crop_size'] = (224, 224)
 
     train_dataset = get_dataset(**dataset_kwargs)
-    val_dataset = get_dataset(**dataset_kwargs, is_train=False)
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size // nprocs,
                                                shuffle=False, num_workers=args.workers, 
                                                pin_memory=True, drop_last=True, sampler = train_sampler)
-    # val_sampler = torch.utils.data.distributed.DistributedSampler(val_dataset)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size , shuffle=False,num_workers=args.workers,
-                                             pin_memory=True)
+                                               
+    # # val_sampler = torch.utils.data.distributed.DistributedSampler(val_dataset)
+    # val_dataset = get_dataset(**dataset_kwargs, is_train=False)
+    # val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size , shuffle=False,num_workers=args.workers,
+    #                                          pin_memory=True)
 
     # Training settings
     criterion_d = FinalLoss()
-    optimizer = optim.Adam(model.parameters()) #, args.lr,weight_decay=1e-8)
-
-    global global_step
-    global_step = 0
+    # optimizer = optim.Adam(model.parameters()) #, args.lr,weight_decay=1e-8)
+    optimizer = optim.AdamW(model.parameters()) #, args.lr,weight_decay=1e-8)
 
     # Perform experiment
     for epoch in range(1, args.epochs + 1):
         if dist.get_rank() == 0:
             print('\nEpoch: %03d - %03d' % (epoch, args.epochs))
         loss_train = train(train_loader, model, criterion_d, optimizer=optimizer, 
-                           device=device, epoch=epoch, args=args)
-        # writer.add_scalar('Training loss', loss_train, epoch)
+                           epoch=epoch, args=args)
 
-        if dist.get_rank() == 0:
-            if epoch % args.val_freq == 0:
-                results_dict, loss_val = validate(val_loader, model.module, criterion_d, 
-                                                device=device, epoch=epoch, args=args,
-                                                log_dir=log_dir)
-                # writer.add_scalar('Val loss', loss_val, epoch)
+        # if dist.get_rank() == 0:
+        #     writer.add_scalar('Training loss', loss_train, epoch)
+        #     if epoch % args.val_freq == 0:
+        #         results_dict, loss_val = validate(val_loader, model.module, criterion_d, 
+        #                                         epoch=epoch, args=args,
+        #                                         log_dir=log_dir)
+        #         writer.add_scalar('Val loss', loss_val, epoch)
 
-                if dist.get_rank() == 0:
-                    result_lines = logging.display_result(results_dict)
-                    print(result_lines)
-                    with open(log_txt, 'a') as txtfile:
-                        txtfile.write('\nEpoch: %03d - %03d' % (epoch, args.epochs))
-                        txtfile.write(result_lines)                
+        #         result_lines = logging.display_result(results_dict)
+        #         print(result_lines)
+        #         with open(log_txt, 'a') as txtfile:
+        #             txtfile.write('\nEpoch: %03d - %03d' % (epoch, args.epochs))
+        #             txtfile.write(result_lines)                
 
-                # for each_metric, each_results in results_dict.items():
-                    # writer.add_scalar(each_metric, each_results, epoch*3)
+        #         for each_metric, each_results in results_dict.items():
+        #             writer.add_scalar(each_metric, each_results, epoch)
 
 class LRFactor:
     def __init__(self, decay, gamma):
@@ -130,40 +120,37 @@ class LRFactor:
                 return g
         return self.gamma[-1]
 
-def train(train_loader, model, criterion_d, optimizer, device, epoch, args):    
-    global global_step
+def train(train_loader, model, criterion_d, optimizer, epoch, args):    
     model.train()
-    depth_loss = logging.AverageMeter()
+    if dist.get_rank() == 0:
+        depth_loss = logging.AverageMeter()
 
-    train_loader.dataset.epoch = 100
-    train_loader.dataset.basic_transform[1].width,train_loader.dataset.basic_transform[1].height = (224,224)
+    lr_schedule = [1.00000000e-03, 9.96061293e-04, 9.84307289e-04, 9.64923355e-04,
+            9.38215187e-04, 9.04603989e-04, 8.64619829e-04, 8.18893283e-04,
+            7.68145484e-04, 7.13176756e-04, 6.54853989e-04, 5.94096967e-04,
+            5.31863865e-04, 4.69136135e-04, 4.06903033e-04, 3.46146011e-04,
+            2.87823244e-04, 2.32854516e-04, 1.82106717e-04, 1.36380171e-04,
+            9.63960113e-05, 6.27848133e-05, 3.60766453e-05, 1.66927110e-05,
+            4.93870669e-06]
 
+    # train_loader.dataset.epoch = 100
     train_loader.sampler.set_epoch(epoch)
+    warm_up_step = 200
 
     for batch_idx, batch in enumerate(train_loader):      
-        global_step += 1
 
-        for param_group in optimizer.param_groups:
-            if global_step < 100:
-                current_lr = 1e-5 + (1e-3 - 1e-5) * (global_step / 100) 
-            elif epoch < 12:
-                current_lr = 1e-3
-            elif epoch < 18:
-                current_lr = 2e-4 
-            elif epoch < 24:
-                current_lr = 5e-5 
-            else:
-                current_lr = 1e-5
+        # for param_group in optimizer.param_groups:
+        #     if batch_idx < warm_up_step and epoch == 1:
+        #         current_lr = 1e-5 + (1e-3 - 1e-5) * ( batch_idx/ warm_up_step) 
+        #     else:
+        #         current_lr = 1e-3#lr_schedule[epoch - 1]
 
-            param_group['lr'] = current_lr
+        #     param_group['lr'] = current_lr
 
         input_RGB = batch['image'].cuda(non_blocking=True)
         depth_gt = batch['depth'].cuda(non_blocking=True)
         focal_length = batch['focal_length'].cuda(non_blocking=True)
         preds,pred_straight,confidence,sum_w = model(input_RGB)
-        if(sum_w.min() < -9e5):
-            print("wrong sumw")
-            continue
         preds = preds[:,0,:,:]
         preds = preds * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
         pred_straight = pred_straight[:,0,:,:]
@@ -190,7 +177,7 @@ def train(train_loader, model, criterion_d, optimizer, device, epoch, args):
     return loss_d
 
 
-def validate(val_loader, model, criterion_d, device, epoch, args, log_dir):
+def validate(val_loader, model, criterion_d, epoch, args, log_dir):
     depth_loss = logging.AverageMeter()
     model.eval()
 
@@ -254,26 +241,25 @@ def validate(val_loader, model, criterion_d, device, epoch, args, log_dir):
 
 if __name__ == '__main__':
     # main()
-    gpus_num = 4
-    device_ids = manager_torch_gpu.GPUManager(target_number=gpus_num).auto_choice()
-    os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(str(i) for i in device_ids)
+    proc_id = int(os.environ["SLURM_PROCID"])
+    ntasks = int(os.environ["SLURM_NTASKS"])
     cudnn.benchmark = True
     # 设置随机数种子
     setup_seed(7240)
     opt = TrainOptions()
     train_args = opt.initialize().parse_args()
     # Logging
-
-    print(train_args)
+    os.environ["MASTER_ADDR"] = 'localhost'
+    os.environ["MASTER_PORT"] = train_args.port
     model = DepthModel(train_args)
 
     if train_args.backbone == 'resnet34':
-        checkpoint = torch.load('./pretrain/resnet34-333f7ec4.pth')
+        checkpoint = torch.load('./pretrain/resnet34-333f7ec4.pth', map_location=torch.device('cpu'))
         model.encoder_modules.load_state_dict(checkpoint,strict=False)
         print("resnet loaded")
     elif train_args.backbone == 'mobilenet3':
-        checkpoint = torch.load('./pretrain/resnet34-333f7ec4.pth')
+        checkpoint = torch.load('./pretrain/resnet34-333f7ec4.pth', map_location=torch.device('cpu'))
         model.encoder_modules.load_state_dict(checkpoint,strict=False)
         print("mobilenet3 loaded")
 
-    mp.spawn(main_worker, nprocs=gpus_num, args=(gpus_num, train_args,model))
+    main_worker(proc_id,ntasks,train_args,model)

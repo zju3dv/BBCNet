@@ -47,11 +47,8 @@ class nyudepthv2(BaseDataset):
         depth[depth > 20] = 0
 
         if self.is_train:
-            # depth = depth[45//2:472//2,43//2:608//2]
-            # image = image[45//2:472//2,43//2:608//2]
             image, depth, focal_length = self.preprocess(image, depth,is_training=True,focal_length_orig=focal_length_orig)
         else:
-            #240 320
             # depth = depth[45:472,43:608]
             # image = image[45:472,43:608]
             depth = depth[8:232,48:272]

@@ -146,7 +146,6 @@ class BaseDataset(Dataset):
         if((sparse_depth>0).sum() < 18):
             sparse_depth[::15,::15] = depth[::15,::15] 
             gt_depth[::15,::15] = depth[::15,::15] 
-        # print((depth - sparse_depth)[sparse_depth > 0].sum(),(sparse_depth > 0).sum())
         if is_training:
             H, W, C = image.shape
 
