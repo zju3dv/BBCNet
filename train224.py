@@ -119,15 +119,21 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
     model.train()
     depth_loss = logging.AverageMeter()
     step_len = len(train_loader)
-    lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, step_len,warmup_epochs=1, warmup_steps=step_len)
+    lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
 
     # train_loader.dataset.epoch = 100
     train_loader.sampler.set_epoch(epoch)
+    warmup_steps = 200
 
-    for batch_idx, batch in enumerate(train_loader):      
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr_schedule[(epoch - 1)]
 
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr_schedule[(epoch - 1) * step_len + batch_idx]
+    for batch_idx, batch in enumerate(train_loader):  
+        if epoch == 1 and batch_idx < warmup_steps:
+            current_lr = 1e-5 + (1e-3 - 1e-5) * (batch_idx / warmup_steps) 
+            for param_group in optimizer.param_groups:
+                param_group['lr'] =current_lr
+
 
         input_RGB = batch['image'].cuda(non_blocking=True)
         depth_gt = batch['depth'].cuda(non_blocking=True)
