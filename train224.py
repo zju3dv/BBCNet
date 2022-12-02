@@ -67,13 +67,17 @@ def main_worker(gpu, nprocs, args, model):
     dist.init_process_group(backend='nccl', world_size=nprocs, rank=gpu)
     torch.cuda.set_device(gpu)
 
-    # model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(dist.get_rank())
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[dist.get_rank()])#,find_unused_parameters=True)
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
-    dataset_kwargs['crop_size'] = (224, 224)
+    if args.dataset == 'nyudepthv2':
+        dataset_kwargs['crop_size'] = (384, 512)
+    else:
+        dataset_kwargs['crop_size'] = (args.crop_h, args.crop_w)
+
 
     train_dataset = get_dataset(**dataset_kwargs)
 
@@ -118,34 +122,37 @@ def main_worker(gpu, nprocs, args, model):
 def train(train_loader, model, criterion_d, optimizer, epoch, args):    
     model.train()
     depth_loss = logging.AverageMeter()
-    step_len = len(train_loader)
+
+    train_loader.dataset.epoch = 100
+    train_loader.dataset.basic_transform[1].width,train_loader.dataset.basic_transform[1].height = (224,224)
+
+    train_loader.sampler.set_epoch(epoch)
     lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
 
-    # train_loader.dataset.epoch = 100
-    train_loader.sampler.set_epoch(epoch)
-    warmup_steps = 200
 
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr_schedule[(epoch - 1)]
+    for batch_idx, batch in enumerate(train_loader):      
 
-    for batch_idx, batch in enumerate(train_loader):  
-        if epoch == 1 and batch_idx < warmup_steps:
-            current_lr = 1e-5 + (1e-3 - 1e-5) * (batch_idx / warmup_steps) 
-            for param_group in optimizer.param_groups:
-                param_group['lr'] =current_lr
+        for param_group in optimizer.param_groups:
+            if batch_idx < 100 and epoch == 1:
+                current_lr = 1e-5 + (1e-3 - 1e-5) * (batch_idx / 100) 
+            else:
+                current_lr = lr_schedule[epoch - 1]
 
+
+
+            param_group['lr'] = current_lr
 
         input_RGB = batch['image'].cuda(non_blocking=True)
         depth_gt = batch['depth'].cuda(non_blocking=True)
         focal_length = batch['focal_length'].cuda(non_blocking=True)
         preds,pred_straight,confidence,sum_w = model(input_RGB)
-        focal_factor = focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519
-        preds = preds[:,0,:,:] * focal_factor
-        pred_straight = pred_straight[:,0,:,:] * focal_factor
+        preds = preds[:,0,:,:]
+        preds = preds * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
+        pred_straight = pred_straight[:,0,:,:]
+        pred_straight = pred_straight * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
 
         optimizer.zero_grad()
-        loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + \
-             criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.1
+        loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.1
 
         loss_d = loss_d +  sum_w  * 0.1
         loss_d = loss_d.mean()
@@ -158,7 +165,8 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
                                 (depth_loss.val, sum_w.mean().item()  * 0.1,depth_loss.avg)))
         optimizer.step()
 
-    return depth_loss.avg
+    return loss_d
+
 
 
 def validate(val_loader, model, criterion_d, epoch, args, log_dir):
@@ -248,3 +256,5 @@ if __name__ == '__main__':
         print("mobilenet3 loaded at %d"%proc_id)
 
     main_worker(proc_id,ntasks,train_args,model)
+
+    dist.barrier()
