@@ -71,7 +71,7 @@ class Decoder(nn.Module):
         self.ffmp2 = FFM(inchannels=self.inchannels[2], midchannels=self.midchannels[2], outchannels = self.midchannels[1], upfactor=self.upfactors[2])
         self.ffmp1 = FFM(inchannels=self.inchannels[1], midchannels=self.midchannels[1], outchannels = self.midchannels[0], upfactor=self.upfactors[1])
         self.ffmp0 = FFM(inchannels=self.inchannels[0], midchannels=self.midchannels[0], outchannels = self.midchannels[0], upfactor=self.upfactors[0])
-        self.ffmp = FFM(self.initial_fusion_out, midchannels=self.midchannels[0], outchannels = self.outchannels, upfactor=1)
+        self.ffmp = FFM(self.midchannels[0], midchannels=self.midchannels[0], outchannels = self.outchannels, upfactor=1)
         # self.ffmnp1 = FFM(inchannels=self.inchannels[0], midchannels=self.midchannels[0], outchannels = self.midchannels[0], upfactor=self.upfactors[0])
         
         # self.outconv = nn.Sequential(
@@ -131,7 +131,7 @@ class Decoder(nn.Module):
 
         x_2 = self.ffmp0(features[1], x_4)  # 1/2
         # x_2 = self.outconv(torch.cat((x_2,features[0]),dim=1))  # 1/2
-        x_2_1 = self.ffmp(features[0],x_2)  # 1/2
+        x_2_1 = self.ffmp(x_2,x_2)  # 1/2
 
         x = self.adapt_conv_short(x_2_1)
         confidence = torch.zeros_like(x[:,0:1])

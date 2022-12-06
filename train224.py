@@ -73,10 +73,7 @@ def main_worker(gpu, nprocs, args, model):
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
-    if args.dataset == 'nyudepthv2':
-        dataset_kwargs['crop_size'] = (384, 512)
-    else:
-        dataset_kwargs['crop_size'] = (args.crop_h, args.crop_w)
+    dataset_kwargs['crop_size'] = (224, 224)
 
 
     train_dataset = get_dataset(**dataset_kwargs)
@@ -123,11 +120,10 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
     model.train()
     depth_loss = logging.AverageMeter()
 
-    train_loader.dataset.epoch = 100
-    train_loader.dataset.basic_transform[1].width,train_loader.dataset.basic_transform[1].height = (224,224)
-
+    # train_loader.dataset.epoch = 100
     train_loader.sampler.set_epoch(epoch)
-    lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
+    # lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
+    lr_schedule = cosine_scheduler(5e-3,1e-5,args.epochs, 1)
 
 
     for batch_idx, batch in enumerate(train_loader):      
@@ -137,8 +133,6 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
                 current_lr = 1e-5 + (1e-3 - 1e-5) * (batch_idx / 100) 
             else:
                 current_lr = lr_schedule[epoch - 1]
-
-
 
             param_group['lr'] = current_lr
 
@@ -250,10 +244,10 @@ if __name__ == '__main__':
         checkpoint = torch.load('./pretrain/resnet34-333f7ec4.pth', map_location=torch.device('cpu'))
         model.encoder_modules.load_state_dict(checkpoint,strict=False)
         print("resnet loaded at %d"%proc_id)
-    elif train_args.backbone == 'mobilenet3':
-        checkpoint = torch.load('./pretrain/resnet34-333f7ec4.pth', map_location=torch.device('cpu'))
+    elif train_args.backbone == 'mobilenetv3':
+        checkpoint = torch.load('./pretrain/mobilenetv3-large-1cd25616.pth', map_location=torch.device('cpu'))
         model.encoder_modules.load_state_dict(checkpoint,strict=False)
-        print("mobilenet3 loaded at %d"%proc_id)
+        print("mobilenetv3 loaded at %d"%proc_id)
 
     main_worker(proc_id,ntasks,train_args,model)
 

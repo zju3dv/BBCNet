@@ -41,7 +41,7 @@ def solve(sparse_depth,x):
 
         final_depth = final_depth.view(1,1,x.shape[2],x.shape[3]) 
         out.append(final_depth)
-        cond_sum = cond_sum + condition_number / B # + W[- 1].abs() * 100
+        cond_sum = cond_sum + condition_number / B 
 
     x = torch.cat(out,dim=0)      
     return x,cond_sum
