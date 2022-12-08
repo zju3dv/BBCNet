@@ -120,16 +120,16 @@ class Decoder(nn.Module):
                     init.constant_(m.bias, 0)
 
     def forward(self, features):
-        x_32x = self.conv(features[4])  # 1/32
+        x_32x = self.conv(features[3])  # 1/32
         x_32 = self.conv1(x_32x)
 
         x_16 = x_32#self.upsample(x_32)  # 1/16
-        x_8 = self.ffmp2(features[3], x_16)  # 1/8
+        x_8 = self.ffmp2(features[2], x_16)  # 1/8
 
-        x_4 = self.ffmp1(features[2], x_8)  # 1/4
+        x_4 = self.ffmp1(features[1], x_8)  # 1/4
         x_4 = positionalencoding2d(x_4) + x_4 # down
 
-        x_2 = self.ffmp0(features[1], x_4)  # 1/2
+        x_2 = self.ffmp0(features[0], x_4)  # 1/2
         # x_2 = self.outconv(torch.cat((x_2,features[0]),dim=1))  # 1/2
         x_2_1 = self.ffmp(x_2,x_2)  # 1/2
 

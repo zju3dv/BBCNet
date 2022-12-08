@@ -156,10 +156,10 @@ class MobileNetV3(nn.Module):
         for i in range(len(self.features)):
             x = self.features[i](x)
             if(len(self.features) > 14):
-                if i in [1,3,6,12,15]:
+                if i in [3,6,12,15]:
                     output.append(x)
             else:
-                if i in [0,1,3,8,11]:
+                if i in [1,3,8,11]:
                     output.append(x)
         # x = self.features(x)
         return output
