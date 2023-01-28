@@ -23,7 +23,7 @@ class Block(nn.Module):
         drop_path (float): Stochastic depth rate. Default: 0.0
         layer_scale_init_value (float): Init value for Layer Scale. Default: 1e-6.
     """
-    def __init__(self, dim, drop_path=0., layer_scale_init_value=1e-6):
+    def __init__(self, dim, drop_path=0.2, layer_scale_init_value=1e-6):
         super().__init__()
         self.dwconv = nn.Conv2d(dim, dim, kernel_size=7, padding=3, groups=dim) # depthwise conv
         self.norm = LayerNorm(dim, eps=1e-6)
@@ -116,7 +116,6 @@ class ConvNeXt(nn.Module):
             x = self.downsample_layers[i](x)
             x = self.stages[i](x)
             out.append(x)
-            print(x.shape)
 
         # x = self.forward_features(x)
         # x = self.head(x)

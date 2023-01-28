@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.init as init
 from .MobileNetv3 import InvertedResidual
 from .Resnet import BasicBlock
+from .convnext import LayerNorm,Block
 
 def positionalencoding2d(input):
     """
@@ -40,9 +41,19 @@ def make_block(inchannels,midchannels,backbone='resnet34'):
             )
         block = BasicBlock(inchannels,midchannels,downsample = downsample)
         return block
-    else:
+    elif backbone == 'mobilenetv3':
         block = InvertedResidual(inchannels,inchannels * 2,midchannels,3,1,False,True)
         return block
+    else:
+        if inchannels == midchannels:
+            return Block(midchannels,layer_scale_init_value=1)
+        else:
+            block = nn.Sequential(
+                nn.Conv2d(inchannels, midchannels, kernel_size=1, stride=1),
+                LayerNorm(midchannels, eps=1e-6, data_format="channels_first"),
+                Block(midchannels,layer_scale_init_value=1)
+            )
+            return block
 
 
 class Decoder(nn.Module):
@@ -51,13 +62,12 @@ class Decoder(nn.Module):
         if(args.backbone == 'resnet34'):
             self.inchannels =  [64, 128, 256, 512] # resnet
             self.midchannels = [16, 128, 256, 512]
-            self.initial_fusion_out = 64
         elif args.backbone == 'mobilenetv3':
             self.inchannels =  [24, 40, 112, 160] #mobilenet
             self.midchannels = [24, 40, 112, 160]
-            self.initial_fusion_out = 16
         else:
-            raise "no implementation"
+            self.inchannels =  [96, 192, 384, 768] #convnext
+            self.midchannels = [16, 192, 384, 768]
 
         self.upfactors = [2,2,2,2]
         self.outchannels = 24
@@ -74,10 +84,6 @@ class Decoder(nn.Module):
         self.ffmp = FFM(self.midchannels[0], midchannels=self.midchannels[0], outchannels = self.outchannels, upfactor=1)
         # self.ffmnp1 = FFM(inchannels=self.inchannels[0], midchannels=self.midchannels[0], outchannels = self.midchannels[0], upfactor=self.upfactors[0])
         
-        # self.outconv = nn.Sequential(
-        #     make_block(self.initial_fusion_out + self.midchannels[0], midchannels=self.outchannels,backbone=args.backbone),
-        #     make_block(self.outchannels, midchannels=self.outchannels,backbone=args.backbone)
-        # )
         self.adapt_conv_short = nn.Sequential(
             nn.BatchNorm2d(num_features=self.outchannels ),
             nn.Conv2d(self.outchannels , 24 + 18, kernel_size=1, stride=1, padding=0,bias=True),
@@ -123,7 +129,7 @@ class Decoder(nn.Module):
         x_32x = self.conv(features[3])  # 1/32
         x_32 = self.conv1(x_32x)
 
-        x_16 = x_32#self.upsample(x_32)  # 1/16
+        x_16 = self.upsample(x_32)  # 1/16
         x_8 = self.ffmp2(features[2], x_16)  # 1/8
 
         x_4 = self.ffmp1(features[1], x_8)  # 1/4

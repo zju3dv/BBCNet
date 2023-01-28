@@ -5,6 +5,7 @@ import torch.nn as nn
 from .MobileNetv3 import mobilenetv3_large
 from .DepthSolver import solve
 from .Decoder import positionalencoding2d
+from .convnext import convnext_tiny
 
 def positionalencodingxy(input):
     """
@@ -32,7 +33,8 @@ class DepthModel(nn.Module):
         elif args.backbone == 'mobilenetv3':
             self.encoder_modules = mobilenetv3_large()
         else:
-            raise "Not valid backbone"
+            self.encoder_modules = convnext_tiny()
+            # raise "Not valid backbone"
         
         self.decoder_modules = network.Decoder(args)
         if args.slam_infer:

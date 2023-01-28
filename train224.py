@@ -248,6 +248,10 @@ if __name__ == '__main__':
         checkpoint = torch.load('./pretrain/mobilenetv3-large-1cd25616.pth', map_location=torch.device('cpu'))
         model.encoder_modules.load_state_dict(checkpoint,strict=False)
         print("mobilenetv3 loaded at %d"%proc_id)
+    else:
+        checkpoint = torch.load('./pretrain/convnext_tiny_22k_224.pth', map_location=torch.device('cpu'))
+        model.encoder_modules.load_state_dict(checkpoint,strict=False)
+        print("convnext loaded at %d"%proc_id)
 
     main_worker(proc_id,ntasks,train_args,model)
 
