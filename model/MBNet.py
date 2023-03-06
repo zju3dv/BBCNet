@@ -92,6 +92,7 @@ class DepthModel(nn.Module):
         if False:
             out = self.upsample(torch.cat([x,confidence],dim=1))
             return out
+        # return torch.cat([basis,confidence],dim=1)
         confidence = confidence[:,0,:,:]
         out_prior = basis.sum(dim=1).view(x.shape[0],1,x.shape[2],x.shape[3])
         out_prior = torch.clamp(out_prior,1e-6) * 10

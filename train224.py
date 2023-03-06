@@ -73,7 +73,8 @@ def main_worker(gpu, nprocs, args, model):
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
-    dataset_kwargs['crop_size'] = (224, 224)
+    # dataset_kwargs['crop_size'] = (224,448 )
+    dataset_kwargs['crop_size'] = (416,576 )
 
 
     train_dataset = get_dataset(**dataset_kwargs)
@@ -90,7 +91,7 @@ def main_worker(gpu, nprocs, args, model):
     # Training settings
     criterion_d = FinalLoss()
     # optimizer = optim.Adam(model.parameters()) #, args.lr,weight_decay=1e-8)
-    optimizer = optim.AdamW(model.parameters()) #, args.lr,weight_decay=1e-8)
+    optimizer = optim.AdamW(model.parameters(), args.lr,weight_decay=3e-7)
 
     # Perform experiment
     for epoch in range(1, args.epochs + 1):
@@ -252,6 +253,9 @@ if __name__ == '__main__':
         checkpoint = torch.load('./pretrain/convnext_tiny_22k_224.pth', map_location=torch.device('cpu'))
         model.encoder_modules.load_state_dict(checkpoint,strict=False)
         print("convnext loaded at %d"%proc_id)
+
+    # checkpoint = torch.load('/mnt/cache/chuguanyi1/densedepth2/logs/nyudepthv2/0216204155_test/epoch_15_model_big.ckpt', map_location=torch.device('cpu'))
+    # model.load_state_dict(checkpoint,strict=False)
 
     main_worker(proc_id,ntasks,train_args,model)
 
