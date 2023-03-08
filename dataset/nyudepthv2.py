@@ -17,11 +17,11 @@ class nyudepthv2(BaseDataset):
         self.image_path_list = []
         self.depth_path_list = []
 
-        txt_path = os.path.join(filenames_path, 'nyudepthv2')
+        txt_path = os.path.join(filenames_path, 'scannet')
         if is_train:
-            txt_path += '/train_list.txt'
+            txt_path += '/train.txt'
         else:
-            txt_path += '/real_test.txt'
+            txt_path += '/valid.txt'
             # txt_path += '/test_list.txt'
 
         self.is_cache = False
@@ -43,7 +43,7 @@ class nyudepthv2(BaseDataset):
         focal_length_orig = None
         image = jpeg.JPEG(img_path).decode()
         depth = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED).astype('float32') / 1000.0
-        focal_length_orig = 519 // 2
+        focal_length_orig = 519 
         depth[depth > 20] = 0
 
         if self.is_train:
@@ -51,8 +51,8 @@ class nyudepthv2(BaseDataset):
         else:
             # depth = depth[45:472,43:608]
             # image = image[45:472,43:608]
-            depth = depth[8:232,48:272]
-            image = image[8:232,48:272]
+            # depth = depth[8:232,48:272]
+            # image = image[8:232,48:272]
             image, depth, focal_length = self.preprocess(image, depth,focal_length_orig=focal_length_orig)
 
         focal_length = torch.Tensor([focal_length])

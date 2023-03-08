@@ -13,6 +13,7 @@ def convert_torch_to_onnx(model, onnx_filename, input_val):
 def load_torch_model(model_path):
     opt = TrainOptions()
     train_args = opt.initialize().parse_args()
+    train_args.with_confidence = True
     model = DepthModel(train_args)
     device = torch.device('cpu')
     model.to(device)
@@ -25,7 +26,7 @@ def load_torch_model(model_path):
 def main():
     print("starting")
     # model_path = "/mnt/cache/chuguanyi1/Workspace/dense_depth/logs/nyudepthv2/0906_test/epoch_16_model_big.ckpt"
-    model_path = "/mnt/cache/chuguanyi1/densedepth2/logs/nyudepthv2/0217141157_test/epoch_25_model_big.ckpt"
+    model_path = "/mnt/cache/chuguanyi1/paper/densedepth2/logs/nyudepthv2/0306163842_test/epoch_25_model_big.ckpt"
     onnx_filename = "model.onnx"
     input = torch.randn([1, 3, 384, 512])
     # input1 = torch.randn([1, 1, 384, 512])
