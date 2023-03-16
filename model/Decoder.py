@@ -89,7 +89,7 @@ class Decoder(nn.Module):
             nn.Conv2d(self.outchannels , 24 + 18, kernel_size=1, stride=1, padding=0,bias=True),
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(24 + 18,32 , kernel_size=1, stride=1, padding=0,bias=False),
+            nn.Conv2d(24 + 18,4 , kernel_size=1, stride=1, padding=0,bias=False),
             # nn.ReLU(inplace=True),
         )
         if self.args.with_confidence:

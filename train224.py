@@ -124,7 +124,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
     # train_loader.dataset.epoch = 100
     train_loader.sampler.set_epoch(epoch)
     # lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
-    lr_schedule = cosine_scheduler(5e-3,1e-5,args.epochs, 1)
+    lr_schedule = cosine_scheduler(2e-3,2e-6,args.epochs, 1)
 
 
     for batch_idx, batch in enumerate(train_loader):      
@@ -147,7 +147,10 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
         pred_straight = pred_straight * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
 
         optimizer.zero_grad()
-        loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.1
+        if epoch < 10:
+            loss_d = criterion_d(preds, depth_gt, confidence, False)  + criterion_d(pred_straight, depth_gt, confidence,False) * 0.1 + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.001
+        else:
+            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.1
 
         loss_d = loss_d +  sum_w  * 0.1
         loss_d = loss_d.mean()

@@ -238,7 +238,7 @@ class FinalLoss(nn.Module):
         pred_tv = gradient_1order(pred)
         ddiff = (gt_tv[mask_2] - pred_tv[mask_2]).abs()
         if eval_confidence:
-            loss = diff.mean() + ddiff.mean() * 0.3 + (1./ (0.01+theta)).mean() * 0.1
+            loss = diff.mean() + ddiff.mean() * 0.3 + (1./ (0.01+theta)).mean() * 0.01
         else:
             loss = diff.mean() #+ ddiff.mean() * 0.3# + (1./ (0.01+theta)).mean() * 0.1
 
