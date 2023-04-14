@@ -128,6 +128,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
     # lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
     lr_schedule = cosine_scheduler(2e-3,2e-6,args.epochs, 1)
 
+    scaler = GradScaler()
 
     for batch_idx, batch in enumerate(train_loader):      
 
@@ -142,28 +143,30 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
         input_RGB = batch['image'].cuda(non_blocking=True)
         depth_gt = batch['depth'].cuda(non_blocking=True)
         focal_length = batch['focal_length'].cuda(non_blocking=True)
-        preds,pred_straight,confidence,sum_w = model(input_RGB)
-        preds = preds[:,0,:,:]
-        preds = preds * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
-        pred_straight = pred_straight[:,0,:,:]
-        pred_straight = pred_straight * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
+        with autocast():
+            preds,pred_straight,confidence,sum_w = model(input_RGB)
+            preds = preds[:,0,:,:]
+            preds = preds * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
+            pred_straight = pred_straight[:,0,:,:]
+            pred_straight = pred_straight * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
 
-        optimizer.zero_grad()
-        if epoch < 10:
-            loss_d = criterion_d(preds, depth_gt, confidence, False)  + criterion_d(pred_straight, depth_gt, confidence,False) * 0.1 + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.001
-        else:
-            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.1
+            optimizer.zero_grad()
+            if epoch < 10:
+                loss_d = criterion_d(preds, depth_gt, confidence, False)  + criterion_d(pred_straight, depth_gt, confidence,False) * 0.1 + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.001
+            else:
+                loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.1
 
-        loss_d = loss_d +  sum_w  * 0.1
-        loss_d = loss_d.mean()
-        loss_d.backward()
+            loss_d = loss_d +  sum_w  * 0.1
+            loss_d = loss_d.mean()
+        scaler.scale(loss_d).backward()
         if dist.get_rank() == 0:
             real_loss = loss_d.item()
             depth_loss.update(real_loss, input_RGB.size(0))
             logging.progress_bar(batch_idx, len(train_loader), args.epochs, epoch,
                                 ('Depth Loss: %.4f,%.4f (%.4f)' %
                                 (depth_loss.val, sum_w.mean().item()  * 0.1,depth_loss.avg)))
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
 
     return loss_d
 

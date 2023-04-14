@@ -4,26 +4,8 @@ import torch
 import torch.nn as nn
 from .MobileNetv3 import mobilenetv3_large
 from .DepthSolver import DepthSolver
-from .Decoder import positionalencoding2d
 from .convnext import convnext_tiny
-
-def positionalencodingxy(input):
-    """
-    :param d_model: dimension of the model
-    :param height: height of the positions
-    :param width: width of the positions
-    :return: d_model*height*width position matrix
-    """
-    d_model, height, width = input.shape[1::]
-    pe = torch.zeros(d_model, height, width,device = input.device)
-    # Each dimension use half of d_model
-    d_model = int(d_model / 2)
-    pos_w = torch.arange(0., width).unsqueeze(1)
-    pos_h = torch.arange(0., height).unsqueeze(1)
-    pe[0:1, :, :] = (pos_w).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
-    pe[1:2, :, :] = (pos_h).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)
-
-    return pe
+from torch.cuda.amp import autocast, GradScaler
 
 class DepthModel(nn.Module):
     def __init__(self,args):
@@ -43,7 +25,6 @@ class DepthModel(nn.Module):
         else:
             self.down1 = nn.Identity()
             self.down2 = nn.Identity()
-        self.softmax  = nn.Softmax(dim=-2)    
         self.solver = DepthSolver()
 
 
@@ -71,8 +52,8 @@ class DepthModel(nn.Module):
         confidence = confidence[:,0,:,:]
         out_prior = basis.sum(dim=1).view(x.shape[0],1,x.shape[2],x.shape[3])
         out_prior = torch.clamp(out_prior,1e-6) * 10
-        
-        out,w_sum = self.solver(sd,basis)
+        with autocast(dtype=torch.float32):
+            out,w_sum = self.solver(sd,basis)
         
         out = torch.clamp(out,1e-6)  * 10 # n,10,H,W
 
