@@ -19,10 +19,10 @@ def positionalencoding2d(input):
     pe = torch.zeros(d_model, height, width,device = input.device)
     # Each dimension use half of d_model
     d_model = int(d_model / 2)
-    div_term = torch.exp(torch.arange(0., d_model, 2) *
+    div_term = torch.exp(torch.arange(0., d_model, 2,device = input.device) *
                          -(9.21034 / d_model))
-    pos_w = torch.arange(0., width).unsqueeze(1)
-    pos_h = torch.arange(0., height).unsqueeze(1)
+    pos_w = torch.arange(0., width,device = input.device).unsqueeze(1)
+    pos_h = torch.arange(0., height,device = input.device).unsqueeze(1)
     pe[0:d_model:2, :, :] = torch.sin(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
     pe[1:d_model:2, :, :] = torch.cos(pos_w * div_term).transpose(0, 1).unsqueeze(1).repeat(1, height, 1)
     pe[d_model::2, :, :] = torch.sin(pos_h * div_term).transpose(0, 1).unsqueeze(2).repeat(1, 1, width)

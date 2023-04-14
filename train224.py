@@ -70,6 +70,7 @@ def main_worker(gpu, nprocs, args, model):
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(dist.get_rank())
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[dist.get_rank()])#,find_unused_parameters=True)
+    model = torch.compile(model)
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
