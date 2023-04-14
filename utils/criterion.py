@@ -207,7 +207,7 @@ def gradient_1order(x,h_x=None,w_x=None):
     l = F.pad(x, (1, 0, 0, 0))[:, :, :, :w_x]
     t = F.pad(x, (0, 0, 1, 0))[:, :, :h_x, :]
     b = F.pad(x, (0, 0, 0, 1))[:, :, 1:, :]
-    xgrad = torch.abs(torch.pow((r - l), 2) + torch.pow((t - b), 2)) / 4
+    xgrad = (torch.pow((r - l), 2) + torch.pow((t - b), 2)) / 4
     return xgrad[:,0]
 
 class FinalLoss(nn.Module):
@@ -216,31 +216,32 @@ class FinalLoss(nn.Module):
 
         self.max_depth = max_depth
         self.t_valid = 0.0001
+        self.pool = torch.nn.MaxPool2d(kernel_size=3,stride=1,padding=1)
 
     def forward(self, pred, gt, theta, eval_confidence = True):
-        gt = torch.clamp(gt, min=0, max=self.max_depth)
+        mask = (gt > self.t_valid).detach()
+        gt = torch.clamp(gt, max=self.max_depth)
         pred = torch.clamp(pred, min=0, max=self.max_depth)
 
-
-        mask = (gt > self.t_valid).detach()
-
-        mask1 = (gt <= self.t_valid).type_as(pred).detach() # 0s
-        mask_2 = torch.nn.MaxPool2d(kernel_size=3,stride=1,padding=1)(mask1) < 1e-5
-
         diff = torch.abs(pred[mask] - gt[mask])
-        if eval_confidence:
-            diff = theta[mask] * diff + diff * 0.5
-        else:
-            diff = diff
+        loss = diff.mean() 
 
-        ddiff = None
-        gt_tv = gradient_1order(gt)
-        pred_tv = gradient_1order(pred)
-        ddiff = (gt_tv[mask_2] - pred_tv[mask_2]).abs()
         if eval_confidence:
-            loss = diff.mean() + ddiff.mean() * 0.3 + (1./ (0.01+theta)).mean() * 0.01
-        else:
-            loss = diff.mean() #+ ddiff.mean() * 0.3# + (1./ (0.01+theta)).mean() * 0.1
+            ddiff = None
+            mask_2 = (self.pool(-gt) < 0).detach()
+            gt_tv = gradient_1order(gt)
+            pred_tv = gradient_1order(pred)
+            ddiff = (gt_tv[mask_2] - pred_tv[mask_2]).abs()
+            loss += ddiff.mean() * 0.3
 
+        if eval_confidence:
+            abs_rel = diff / gt[mask] 
+            abs_rel = torch.clamp(abs_rel * 5,0,1)
+            theta = torch.clamp(theta,1e-3,0.999)
+            theta_mask = theta[mask]
+            diff1 = theta_mask * diff
+            loss += -0.1*((1 - abs_rel) * torch.log(theta_mask) + \
+                              abs_rel * torch.log(1 - theta_mask)).mean()  + diff1.sum() / (theta_mask.sum()) * 0.1 
+            
         return loss
         
