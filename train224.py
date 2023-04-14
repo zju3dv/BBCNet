@@ -18,6 +18,7 @@ import utils.logging as logging
 
 from dataset.base_dataset import get_dataset
 from configs.train_options import TrainOptions
+from torch.cuda.amp import autocast, GradScaler
 
 
 def setup_seed(seed):
@@ -132,7 +133,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
 
         for param_group in optimizer.param_groups:
             if batch_idx < 100 and epoch == 1:
-                current_lr = 1e-5 + (1e-3 - 1e-5) * (batch_idx / 100) 
+                current_lr = 1e-5 + (2e-3 - 2e-5) * (batch_idx / 100) 
             else:
                 current_lr = lr_schedule[epoch - 1]
 

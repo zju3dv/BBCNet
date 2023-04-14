@@ -3,7 +3,7 @@ from .Resnet import resnet34
 import torch
 import torch.nn as nn
 from .MobileNetv3 import mobilenetv3_large
-from .DepthSolver import solve
+from .DepthSolver import DepthSolver
 from .Decoder import positionalencoding2d
 from .convnext import convnext_tiny
 
@@ -44,6 +44,7 @@ class DepthModel(nn.Module):
             self.down1 = nn.Identity()
             self.down2 = nn.Identity()
         self.softmax  = nn.Softmax(dim=-2)    
+        self.solver = DepthSolver()
 
 
     def forward(self, x):
@@ -58,32 +59,6 @@ class DepthModel(nn.Module):
         rgb = self.down1(x[:,0:1,:,:])
         sd_map = self.down2(x[:,1:2,:,:])
         
-        # mask = sd_map  * 0.5 * 10
-        # coeff1 = sd_map * (mask<2.5)
-        # coeff2 = sd_map * (mask>=2.5)
-
-        # base_sd = sd_map.clone().expand(sd_map.shape[0],2,sd_map.shape[2],sd_map.shape[3])
-        # pe = positionalencodingxy(base_sd) # 2 X H X W
-        # base_sd1 = []
-        # for i in range(base_sd.shape[0]):
-        #     sd0 = base_sd[i,0] # H X W
-        #     mask = sd0 > 0 # H X W
-        #     sd0_mask = sd0[mask] # 125
-        #     pe_s = pe.permute(2,1,0)[mask] # 125 X 2
-        #     pe_d = pe.view(pe.shape[0],-1).T.unsqueeze(1).expand(224*224,pe_s.shape[0],2) # HW X 125 X 2
-        #     kv =  (pe_d - pe_s).pow(2).sum(-1).sqrt().T
-        #     kv = -kv + 1/(kv + 1e-1) * 10
-        #     kv = self.softmax(kv)  # 125 X HW
-        #     inter = sd0_mask.view(1,sd0_mask.shape[0]) @ kv # 1 X HW
-        #     # out.append(inter.view(1,1,sd_map.shape[2],sd_map.shape[3]))
-        #     base_sd1.append(inter.view(1,1,sd_map.shape[2],sd_map.shape[3]))
-
-
-        # base_sd1 = torch.cat(base_sd1,dim=0)
-        # out = torch.clamp(out,1e-6)  * 10 # n,10,H,W
-        # return out,None,None
-
-
         x = torch.cat([rgb,sd_map,sd_map],dim=1)
 
         lateral_out = self.encoder_modules(x)
@@ -97,7 +72,7 @@ class DepthModel(nn.Module):
         out_prior = basis.sum(dim=1).view(x.shape[0],1,x.shape[2],x.shape[3])
         out_prior = torch.clamp(out_prior,1e-6) * 10
         
-        out,w_sum = solve(sd,basis)
+        out,w_sum = self.solver(sd,basis)
         
         out = torch.clamp(out,1e-6)  * 10 # n,10,H,W
 
