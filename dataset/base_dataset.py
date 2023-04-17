@@ -71,7 +71,7 @@ class BaseDataset(Dataset):
         ADD_NOISE = True#True if self.is_training else False
         noise_level = 0.07
         if ADD_NOISE:
-            sparse_depth[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] 
+            sparse_depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
             gtd = np.zeros_like(depth)
             gtd[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]]
             sparse_depth[sparse_depth==0] = gtd[sparse_depth==0]
