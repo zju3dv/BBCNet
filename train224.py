@@ -105,9 +105,15 @@ def main_worker(gpu, nprocs, args, model):
         if dist.get_rank() == 0:
             writer.add_scalar('Training loss', loss_train, epoch)
             if epoch % args.val_freq == 0:
+
                 results_dict, loss_val = validate(val_loader, model.module, criterion_d, 
                                                 epoch=epoch, args=args,
                                                 log_dir=log_dir)
+                
+                if args.save_model and dist.get_rank() == 0:
+                    idx = epoch %50
+                    torch.save(optimizer.state_dict(), os.path.join(
+                        log_dir, 'epoch_%02d_opt.ckpt' % idx))
                 writer.add_scalar('Val loss', loss_val, epoch)
 
                 result_lines = logging.display_result(results_dict)
@@ -126,15 +132,16 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
     # train_loader.dataset.epoch = 100
     train_loader.sampler.set_epoch(epoch)
     # lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
-    lr_schedule = cosine_scheduler(2e-3,2e-6,args.epochs, 1)
+    lr_schedule = cosine_scheduler(1e-3,1e-5,args.epochs, 1)
 
     scaler = GradScaler()
+    
 
     for batch_idx, batch in enumerate(train_loader):      
 
         for param_group in optimizer.param_groups:
             if batch_idx < 100 and epoch == 1:
-                current_lr = 1e-5 + (2e-3 - 2e-5) * (batch_idx / 100) 
+                current_lr = 1e-5 + (1e-3 - 1e-5) * (batch_idx / 100) 
             else:
                 current_lr = lr_schedule[epoch - 1]
 
@@ -143,7 +150,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
         input_RGB = batch['image'].cuda(non_blocking=True)
         depth_gt = batch['depth'].cuda(non_blocking=True)
         focal_length = batch['focal_length'].cuda(non_blocking=True)
-        with autocast():
+        with autocast(enabled=False):
             preds,pred_straight,confidence,sum_w = model(input_RGB)
             preds = preds[:,0,:,:]
             preds = preds * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
@@ -151,10 +158,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             pred_straight = pred_straight * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
 
             optimizer.zero_grad()
-            if epoch < 10:
-                loss_d = criterion_d(preds, depth_gt, confidence, False)  + criterion_d(pred_straight, depth_gt, confidence,False) * 0.1 + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.001
-            else:
-                loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,args.with_confidence) * 0.1
+            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,False) * 0.1
 
             loss_d = loss_d +  sum_w  * 0.1
             loss_d = loss_d.mean()
@@ -252,6 +256,8 @@ if __name__ == '__main__':
     if train_args.backbone == 'resnet34':
         checkpoint = torch.load('./pretrain/resnet34-333f7ec4.pth', map_location=torch.device('cpu'))
         model.encoder_modules.load_state_dict(checkpoint,strict=False)
+        # checkpoint = torch.load('/mnt/cache/chuguanyi1/paper/densedepth2/logs/nyudepthv2/0415111253_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
+        # model.load_state_dict(checkpoint,strict=False)
         print("resnet loaded at %d"%proc_id)
     elif train_args.backbone == 'mobilenetv3':
         checkpoint = torch.load('./pretrain/mobilenetv3-large-1cd25616.pth', map_location=torch.device('cpu'))
@@ -259,7 +265,7 @@ if __name__ == '__main__':
         print("mobilenetv3 loaded at %d"%proc_id)
     else:
         checkpoint = torch.load('./pretrain/convnext_tiny_22k_224.pth', map_location=torch.device('cpu'))
-        model.encoder_modules.load_state_dict(checkpoint,strict=False)
+        model.encoder_modules.load_state_dict(checkpoint['model'],strict=False)
         print("convnext loaded at %d"%proc_id)
 
     # checkpoint = torch.load('/mnt/cache/chuguanyi1/densedepth2/logs/nyudepthv2/0216204155_test/epoch_15_model_big.ckpt', map_location=torch.device('cpu'))
