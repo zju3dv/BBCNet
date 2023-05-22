@@ -71,12 +71,12 @@ def main_worker(gpu, nprocs, args, model):
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(dist.get_rank())
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[dist.get_rank()])#,find_unused_parameters=True)
-    model = torch.compile(model)
+    # model = torch.compile(model)
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
     # dataset_kwargs['crop_size'] = (224,448 )
-    dataset_kwargs['crop_size'] = (416,576 )
+    dataset_kwargs['crop_size'] = (224,224 )
 
 
     train_dataset = get_dataset(**dataset_kwargs)
@@ -160,7 +160,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             optimizer.zero_grad()
             loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,False) * 0.1
 
-            loss_d = loss_d +  sum_w  * 0.1
+            loss_d = loss_d +  sum_w  * 0.01
             loss_d = loss_d.mean()
         scaler.scale(loss_d).backward()
         if dist.get_rank() == 0:
@@ -168,7 +168,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             depth_loss.update(real_loss, input_RGB.size(0))
             logging.progress_bar(batch_idx, len(train_loader), args.epochs, epoch,
                                 ('Depth Loss: %.4f,%.4f (%.4f)' %
-                                (depth_loss.val, sum_w.mean().item()  * 0.1,depth_loss.avg)))
+                                (depth_loss.val, sum_w.mean().item()  * 0.01,depth_loss.avg)))
         scaler.step(optimizer)
         scaler.update()
 
