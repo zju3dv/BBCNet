@@ -21,7 +21,7 @@ class BaseDataset(Dataset):
         
         self.count = 0
         linear_transform = [
-            A.geometric.RandomScale(scale_limit=(-0.1,0.2), interpolation=cv2.INTER_AREA, always_apply=True),
+            A.geometric.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
             A.geometric.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
         ]
         self.linear_transform = linear_transform    
@@ -44,8 +44,8 @@ class BaseDataset(Dataset):
         all_kpts = list(fast_detector.detect(image, (depth > 0).astype(np.uint8)))
         all_kpts.sort(key=lambda kp:kp.response,reverse=True)
         n_kpt = len(all_kpts)
-        min_n = max(50,60 + 6*(10-self.epoch))#int(1440 * (0.9648 ** self.epoch))
-        max_n = max(120,120 + 12*(10-self.epoch))#int(1600 * (0.97265 ** self.epoch))
+        min_n = 100#max(50,60 + 6*(10-self.epoch))#int(1440 * (0.9648 ** self.epoch))
+        max_n = 150#max(120,120 + 12*(10-self.epoch))#int(1600 * (0.97265 ** self.epoch))
         if(len(all_kpts) > max_n * 2):
             sparse_kpts = all_kpts[0:max_n * 2]
         else:
@@ -68,17 +68,16 @@ class BaseDataset(Dataset):
 
         sparse_depth = np.zeros_like(depth)
 
-        ADD_NOISE = True#True if self.is_training else False
+        ADD_NOISE = False#True if self.is_training else False
         noise_level = 0.07
         if ADD_NOISE:
             sparse_depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
             gtd = np.zeros_like(depth)
             gtd[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]]
             sparse_depth[sparse_depth==0] = gtd[sparse_depth==0]
+            sparse_depth = sparse_depth + sparse_depth * np.random.randn(sparse_depth.shape[0],sparse_depth.shape[1]) * noise_level
         else:
             sparse_depth[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
-            noise_level = 0
-        sparse_depth = sparse_depth + sparse_depth * np.random.randn(sparse_depth.shape[0],sparse_depth.shape[1]) * noise_level
         
         USE_DIFF_KPTS = True 
         if USE_DIFF_KPTS:
