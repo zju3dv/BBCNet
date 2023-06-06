@@ -50,14 +50,12 @@ class DepthModel(nn.Module):
             return out
         # return torch.cat([basis,confidence],dim=1)
         confidence = confidence[:,0,:,:]
-        out_prior = basis.sum(dim=1).view(x.shape[0],1,x.shape[2],x.shape[3])
-        out_prior = torch.clamp(out_prior,1e-6) * 10
         with autocast(dtype=torch.float32):
             out,w_sum = self.solver(sd,basis)
         
         out = torch.clamp(out,1e-6)  * 10 # n,10,H,W
 
         if self.training:
-            return out,out_prior,confidence,w_sum
+            return out,out,confidence,w_sum
         return out,confidence,out_base
 

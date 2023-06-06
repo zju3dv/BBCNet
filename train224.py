@@ -154,11 +154,9 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             preds,pred_straight,confidence,sum_w = model(input_RGB)
             preds = preds[:,0,:,:]
             preds = preds * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
-            pred_straight = pred_straight[:,0,:,:]
-            pred_straight = pred_straight * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
 
             optimizer.zero_grad()
-            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  + criterion_d(pred_straight, depth_gt, confidence,False) * 0.1
+            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence)  *1.1
 
             loss_d = loss_d +  sum_w  * 0.01
             loss_d = loss_d.mean()

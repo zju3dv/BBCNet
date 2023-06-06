@@ -1,49 +1,45 @@
 import torch
 import torch.nn as nn
 
-
+# TODO:
+# 1. add adaptor
 class DepthSolver(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.prior = 1e-5
+
     def forward(self,sparse_depth,x):
-        cond_sum = torch.zeros_like(x[0,0,0,0])
-        out = []
         B,C,H,W = x.shape
-        min_solvable_number = 20
-        prior = 1e-5
-        diag = prior * torch.ones(x.shape[1],x.shape[1],device = x.device)
-        fb = prior * torch.ones(x.shape[1],1,device = x.device)
-        for i in range(sparse_depth.shape[0]):
-            mask = (sparse_depth[i]  > 0).detach() # H,W
-            if(mask.sum() < min_solvable_number):
-                out.append(x[i].sum(dim=0).view(1,1,H,W))
-                continue
-            sd = sparse_depth[i][mask] # HW
-            mask = mask[0]
-            f_sparse_orig = x[i].permute(1,2,0)
-            f_sparse = f_sparse_orig[mask]
-            FTF = f_sparse.T @ f_sparse
-            FTF = FTF + diag
+        diag = self.prior * torch.eye(C,C,device = x.device) # for numberical stablity
+        fb = self.prior * torch.ones(C,1,device = x.device) # for numberical stablity
 
-            eigval = torch.linalg.eigvals(FTF).real.abs()
-            condition_number = eigval.max() / eigval.min()
-            condition_number = torch.log(condition_number + 1) #* 16 / x.shape[1] #* x.shape[1] / 16
-            # if not self.training:
-            #     if(condition_number >= 130):#50 for 4 bases
-            #         prior =10 
-            #         FTF = f_sparse.T @ f_sparse + torch.eye(FTF.shape[0],device=FTF.device) * prior
+        sd_flatten = sparse_depth.view(B,H*W,1) # B X HW X 1
+        x_flatten = x.view(B,C,H*W).permute(0,2,1).contiguous() # B X HW X C
 
-            FTD = f_sparse.T @ sd 
-            FTD = FTD.view(FTD.shape[0],1)
-            FTD = FTD + fb
-            weight = torch.linalg.solve(FTF,FTD)
+        # N = 200
+        N = (sd_flatten > 0).sum(1).max().item()
 
-            predict = x[i].view(x.shape[1],x.shape[2] * x.shape[3])
+        # sorted_sd,sorted_indices = torch.sort(sd_flatten,dim=1,descending=True)
+        sorted_sd,sorted_indices = torch.topk(sd_flatten,dim=1,sorted=False,k=N)
+        sorted_indices = sorted_indices.detach()
+        sd = sorted_sd.contiguous().detach() # B X N X 1
+        f_sparse_sorted = torch.gather(x_flatten,dim=1,index=sorted_indices.repeat(1,1,C))
+        f_sparse = f_sparse_sorted * (sd > 0).expand_as(f_sparse_sorted).detach()
+        FTF = torch.bmm(f_sparse.mT, f_sparse) # B X C X C
+        FTF = FTF + diag
+        eigval = torch.linalg.eigvalsh(FTF)
+        condition_number = eigval[:,-1] / eigval[:,0]
+        condition_number = torch.log(condition_number + 1) #* 16 / x.shape[1] #* x.shape[1] / 16
+        # print(FT.shape,sd.shape)
+        FTD = torch.bmm(f_sparse.mT,sd)
+        FTD = FTD + fb
+        # weight = torch.linalg.solve(FTF,FTD)
+        weight = torch.linalg.solve(FTF,FTD)
+        # print(FTF.shape,weight.shape,eigval.shape,FTD.shape,f_sparse.shape)
+        final_depth = torch.bmm(weight.view(B,1,weight.shape[1]), x_flatten.mT)
+        # print(final_depth.shape)
+        final_depth = final_depth.view(B,1,H,W)
+        cond_sum = condition_number.mean() + (weight - 1).abs().mean()*10
+        return final_depth,cond_sum
 
-            final_depth = weight.view(1,weight.shape[0]) @ predict   
-
-            final_depth = final_depth.view(1,1,x.shape[2],x.shape[3]) 
-            out.append(final_depth)
-            cond_sum = cond_sum + condition_number / B 
-
-        x = torch.cat(out,dim=0)      
-        return x,cond_sum
 
