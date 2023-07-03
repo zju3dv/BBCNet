@@ -2,7 +2,6 @@ import os
 import cv2
 import torch
 import jpeg4py as jpeg
-import torch.distributed as dist
 
 from dataset.base_dataset import BaseDataset
 
@@ -17,20 +16,19 @@ class nyudepthv2(BaseDataset):
         self.image_path_list = []
         self.depth_path_list = []
 
-        txt_path = os.path.join(filenames_path, 'nyudepthv2')
+        txt_path = os.path.join(filenames_path, 'scannet')
         if is_train:
-            txt_path += '/train_list.txt'
+            txt_path += '/train.txt'
         else:
-            txt_path += '/real_test.txt'
+            txt_path += '/valid.txt'
             # txt_path += '/test_list.txt'
 
         self.is_cache = False
 
         self.filenames_list = self.readTXT(txt_path)
         phase = 'train' if is_train else 'test'
-        if dist.get_rank() == 0:
-            print("Dataset: NYU Depth V2")
-            print("# of %s images: %d" % (phase, len(self.filenames_list)))
+        print("Dataset: NYU Depth V2")
+        print("# of %s images: %d" % (phase, len(self.filenames_list)))
 
 
     def __len__(self):
@@ -40,22 +38,12 @@ class nyudepthv2(BaseDataset):
         img_path = self.filenames_list[idx]
         gt_path = self.filenames_list[idx].replace('jpg','png').replace('color','depth')
         filename = img_path.split('/')[-2] + '_' + img_path.split('/')[-1]
-        focal_length_orig = None
         image = jpeg.JPEG(img_path).decode()
         depth = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED).astype('float32') / 1000.0
         focal_length_orig = 519 
         depth[depth > 20] = 0
 
-        if self.is_train:
-            image, depth, focal_length = self.preprocess(image, depth,is_training=True,focal_length_orig=focal_length_orig)
-        else:
-            # depth = depth[45:472,43:608]
-            # image = image[45:472,43:608]
-            # depth = depth[8:232,48:272]
-            # image = image[8:232,48:272]
-            depth = depth[8:232,48:272]
-            image = image[8:232,48:272]
-            image, depth, focal_length = self.preprocess(image, depth,focal_length_orig=focal_length_orig)
+        image, depth, focal_length = self.preprocess(image, depth, is_training=self.is_train,focal_length_orig=focal_length_orig)
 
         focal_length = torch.Tensor([focal_length])
 

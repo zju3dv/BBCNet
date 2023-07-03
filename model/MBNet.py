@@ -56,6 +56,6 @@ class DepthModel(nn.Module):
         out = torch.clamp(out,1e-6)  * 10 # n,10,H,W
 
         if self.training:
-            return out,out,confidence,w_sum
+            return out,confidence,w_sum
         return out,confidence,out_base
 

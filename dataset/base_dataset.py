@@ -2,6 +2,7 @@ import random
 import importlib
 import albumentations as A
 from torch.utils.data import Dataset
+from albumentations.core.transforms_interface import ImageOnlyTransform
 import torchvision.transforms as transforms
 import cv2
 import numpy as np
@@ -16,23 +17,33 @@ def get_dataset(dataset_name, **kwargs):
 
 fast_detector = cv2.FastFeatureDetector.create(5)
 
+class ToGrayCustom(ImageOnlyTransform):
+
+    def apply(self, img, **params):
+        return cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+    def get_transform_init_args_names(self):
+        return ()
+
 class BaseDataset(Dataset):
     def __init__(self, crop_size):
         
         self.count = 0
         linear_transform = [
-            A.geometric.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
-            A.geometric.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
+            A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
+            A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
+            # A.ShiftScaleRotate
         ]
         self.linear_transform = linear_transform    
         basic_transform = [
+            A.RandomCrop(crop_size[0], crop_size[1]),
             A.HorizontalFlip(),
-            A.RandomCrop(crop_size[0], crop_size[1])
         ]
         brightness_transform = [
+            A.HueSaturationValue(),
+            ToGrayCustom(always_apply=True),
             A.RandomBrightnessContrast(),
             A.RandomGamma(),
-            A.HueSaturationValue(),
             A.GaussNoise()
         ]
         self.basic_transform = basic_transform    
@@ -44,14 +55,16 @@ class BaseDataset(Dataset):
         all_kpts = list(fast_detector.detect(image, (depth > 0).astype(np.uint8)))
         all_kpts.sort(key=lambda kp:kp.response,reverse=True)
         n_kpt = len(all_kpts)
-        min_n = 100#max(50,60 + 6*(10-self.epoch))#int(1440 * (0.9648 ** self.epoch))
-        max_n = 150#max(120,120 + 12*(10-self.epoch))#int(1600 * (0.97265 ** self.epoch))
-        if(len(all_kpts) > max_n * 2):
+        min_n = 50#max(50,60 + 6*(10-self.epoch))#int(1440 * (0.9648 ** self.epoch))
+        max_n = 200#max(120,120 + 12*(10-self.epoch))#int(1600 * (0.97265 ** self.epoch))
+        if(n_kpt == 0):
+            return np.zeros_like(depth),np.zeros_like(depth)
+        
+        if(n_kpt > max_n * 2):
             sparse_kpts = all_kpts[0:max_n * 2]
         else:
             sparse_kpts = all_kpts
-        if(n_kpt == 0):
-            return np.zeros_like(depth),np.zeros_like(depth)
+
         if n_sample_kpt is None:
             n_sample_kpt = n_kpt if n_kpt <= min_n else random.randint(min_n,min(max_n,n_kpt))
         else:
@@ -68,7 +81,7 @@ class BaseDataset(Dataset):
 
         sparse_depth = np.zeros_like(depth)
 
-        ADD_NOISE = False#True if self.is_training else False
+        ADD_NOISE = True#True if self.is_training else False
         noise_level = 0.07
         if ADD_NOISE:
             sparse_depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
@@ -87,20 +100,19 @@ class BaseDataset(Dataset):
         gt_sd[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
         return sparse_depth,gt_sd
 
-    # def getSparseDepth(self,image,depth,n_sample_kpt = None):
-    #     mask = depth.reshape(-1) > 0
-    #     rdepth = depth.reshape(-1)
-    #     n_sample_kpt = 500
-    #     all_points_idx = mask.nonzero()[0]
-    #     p_len = len(all_points_idx)
-    #     n_sample_kpt = min(n_sample_kpt,p_len)
-    #     sample_inx = np.random.permutation(all_points_idx)[0:n_sample_kpt]
-    #     mask_new = np.zeros_like(rdepth)
-    #     mask_new[sample_inx] = 1
-    #     mask_new = mask_new.reshape(depth.shape[0],depth.shape[1])
-    #     sparse_depth = depth * mask_new.astype(np.uint8)
+    def getSparseDepthRandom(self,image,depth,n_sample_kpt = None):
+        mask = depth.reshape(-1) > 0
+        rdepth = depth.reshape(-1)
+        all_points_idx = mask.nonzero()[0]
+        p_len = len(all_points_idx)
+        n_sample_kpt = min(n_sample_kpt,p_len)
+        sample_inx = np.random.permutation(all_points_idx)[0:n_sample_kpt]
+        mask_new = np.zeros_like(rdepth)
+        mask_new[sample_inx] = 1
+        mask_new = mask_new.reshape(depth.shape[0],depth.shape[1])
+        sparse_depth = depth * mask_new.astype(np.uint8)
 
-    #     return sparse_depth,sparse_depth
+        return sparse_depth,sparse_depth
 
 
     def preprocess(self, image, depth,is_training = False,focal_length_orig = None):
@@ -108,6 +120,11 @@ class BaseDataset(Dataset):
         self.is_training = is_training
         deterministic_rand = None
         if is_training:
+            aug2 = A.Compose(transforms=self.brightness_transform)
+            augmented = aug2(image=image)
+            image = augmented['image']
+            self.count += 1
+
             imask = (depth < 1e-3).astype('uint8') * 127
             origin_h = image.shape[1]
             additional_targets = {'depth': 'mask', 'imask':'mask'}
@@ -121,8 +138,6 @@ class BaseDataset(Dataset):
             depth[imask] = 0
             resized_h = image.shape[1]
             scale_factor = resized_h / origin_h
-            depth = depth
-            augmented=None
 
             additional_targets = {'depth': 'mask'}
             aug1 = A.Compose(transforms=self.basic_transform,
@@ -130,24 +145,18 @@ class BaseDataset(Dataset):
             augmented = aug1(image=image, depth=depth)
             image = augmented['image']
             depth = augmented['depth']
-            augmented=None
-            
-            aug2 = A.Compose(transforms=self.brightness_transform)
-            augmented = aug2(image=image)
-            image = augmented['image']
-            self.count += 1
         else:
             deterministic_rand = 125
         focal_length = focal_length_orig * scale_factor
 
-        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        gray = image if self.is_training else cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         sparse_depth,gt_depth = self.getSparseDepth(gray,depth,deterministic_rand)
         if((sparse_depth>0).sum() < 18):
-            sparse_depth[::15,::15] = depth[::15,::15] 
-            gt_depth[::15,::15] = depth[::15,::15] 
-        if is_training:
-            H, W, C = image.shape
+            sparse_depth,gt_depth = self.getSparseDepthRandom(gray,depth,random.randint(15,40))
 
+        H = image.shape[0]
+        W = image.shape[1]
+        if is_training:
             if self.count % 4 == 0:
                 alpha = random.random()
                 beta = random.random()
@@ -160,20 +169,13 @@ class BaseDataset(Dataset):
             if not USE_DIFF_KPTS_FOR_TEST:
                 gt_depth = sparse_depth
             
-
-        image[:,:,0] = gray
-        image[:,:,1] = 0#np.random.randn(*gray.shape)
-        image[:,:,2] = 0
+        image = np.zeros((H,W,3),np.float32)
+        image[:,:,0] = gray.astype(np.float32) / 255
+        image[:,:,1] = sparse_depth
+        image[:,:,2] = gt_depth
+        image[:,:,1:] /= (focal_length / 519) * 10
 
         image = self.to_tensor(image)
-        depth = self.to_tensor(depth).squeeze()
-        if sparse_depth is not None:
-            sparse_depth = self.to_tensor(sparse_depth).squeeze()
-            sparse_depth = sparse_depth  /(focal_length / 519) / 10
-            image[1,:,:] = sparse_depth
-
-            gt_depth = self.to_tensor(gt_depth).squeeze()
-            gt_depth = gt_depth  /(focal_length / 519) / 10
-            image[2,:,:] = gt_depth
-
+        depth = self.to_tensor(depth)
+        
         return image, depth, focal_length # depth is depth/focal_length in fact

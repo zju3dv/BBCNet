@@ -16,7 +16,7 @@ class DepthSolver(nn.Module):
         sd_flatten = sparse_depth.view(B,H*W,1) # B X HW X 1
         x_flatten = x.view(B,C,H*W).permute(0,2,1).contiguous() # B X HW X C
 
-        # N = 200
+        # N = 200 if self.training else 125
         N = (sd_flatten > 0).sum(1).max().item()
 
         # sorted_sd,sorted_indices = torch.sort(sd_flatten,dim=1,descending=True)
@@ -39,7 +39,7 @@ class DepthSolver(nn.Module):
         final_depth = torch.bmm(weight.view(B,1,weight.shape[1]), x_flatten.mT)
         # print(final_depth.shape)
         final_depth = final_depth.view(B,1,H,W)
-        cond_sum = condition_number.mean() + (weight - 1).abs().mean()*10
+        cond_sum = condition_number.mean() + (weight - 1).abs().mean()
         return final_depth,cond_sum
 
 

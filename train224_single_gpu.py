@@ -55,13 +55,14 @@ def initilize_workspace(args):
     return writer,log_dir
 
 def main_worker(args, model):
-    # model = model.cuda()
+    # torch.set_float32_matmul_precision('high')
+    model = torch.compile(model) # 
     model = torch.nn.DataParallel(model, device_ids=[0])
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
     # dataset_kwargs['crop_size'] = (224,448 )
-    dataset_kwargs['crop_size'] = (224,224 )
+    dataset_kwargs['crop_size'] = (448,576 )
 
 
     train_dataset = get_dataset(**dataset_kwargs)
@@ -122,16 +123,17 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
     model.train()
     depth_loss = logging.AverageMeter()
 
-    # train_loader.dataset.epoch = 100
     # lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
-    lr_schedule = cosine_scheduler(1e-3,1e-5,args.epochs, 1)
+    lr_begin = 1e-3
+    lr_end = 1e-5
+    lr_schedule = cosine_scheduler(lr_begin,lr_end,args.epochs, 1)
 
     scaler = GradScaler()        
 
     for batch_idx, batch in enumerate(train_loader):      
         for param_group in optimizer.param_groups:
             if batch_idx < 100 and epoch == 1:
-                current_lr = 1e-5 + (1e-3 - 1e-5) * (batch_idx / 100) 
+                current_lr = lr_end + (lr_begin - lr_end) * (batch_idx / 100) 
             else:
                 current_lr = lr_schedule[epoch - 1]
 
@@ -143,16 +145,11 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
         with autocast(enabled=True):
             optimizer.zero_grad()
 
-            preds_set,confidence,sum_w = model(input_RGB)
-            loss_d = 0
-            weight = 1
-            for i in range(len(preds_set)):
-                preds = preds_set[i]
-                preds = preds[:,0,:,:]
-                preds = preds * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
+            preds,confidence,sum_w = model(input_RGB)
+            # preds = preds[:,0,:,:]
+            preds = preds * (focal_length.view(preds.shape[0], 1, 1, 1) / 519)
 
-                loss_d += criterion_d(preds, depth_gt, confidence, args.with_confidence) * weight
-                weight *= 0.5
+            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence) * 1.1
 
             loss_d = loss_d +  sum_w  * 0.01
             loss_d = loss_d.mean()
@@ -180,9 +177,7 @@ def validate(val_loader, model, criterion_d, epoch, args):
     metric_name = ['d1', 'd2', 'd3', 'abs_rel', 'sq_rel', 'rmse', 'rmse_log',
                 'log10', 'silog']
 
-    result_metrics = {}
-    for metric in metric_name:
-        result_metrics[metric] = 0.0
+    result_metrics = {metric:0 for metric in metric_name}
 
     total_cnt = 0
     for batch_idx, batch in enumerate(val_loader):
@@ -192,9 +187,8 @@ def validate(val_loader, model, criterion_d, epoch, args):
         total_cnt += input_RGB.shape[0]
         with torch.no_grad():
             preds,confidence,_ = model(input_RGB)
-            preds = preds[:,0,:,:]
-            preds = preds * (focal_length.expand(preds.shape[0],preds.shape[1]).view(preds.shape[0],preds.shape[1],1).expand(preds.shape[0],preds.shape[1],preds.shape[2]) / 519)
-        loss_d = criterion_d(preds.squeeze(), depth_gt_ori.squeeze(),confidence,False).mean()
+            preds = preds * (focal_length.view(preds.shape[0], 1, 1, 1) / 519)
+        loss_d = criterion_d(preds, depth_gt_ori,confidence,False).mean()
 
         depth_loss.update(loss_d.item(), input_RGB.size(0))
 
@@ -214,7 +208,7 @@ def validate(val_loader, model, criterion_d, epoch, args):
                 save_path = os.path.join(result_dir, filename)
                 pred_d_numpy = pred_d.cpu().numpy()
                 d_max = pred_d_numpy.max()
-                pred_d_numpy = ((pred_d_numpy ) / (d_max) * 256).astype(np.uint8)
+                pred_d_numpy = ((pred_d_numpy ) / (d_max) * 255).astype(np.uint8)
                 if i == 0:
                     cv2.imwrite(save_path.replace('npy','jpg'), pred_d_numpy.astype(np.uint8))
             for key in result_metrics.keys():
