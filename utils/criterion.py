@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from kornia.utils import create_meshgrid
 import torch.nn.functional as F
+from kornia.filters import spatial_gradient
 
 
 def randomSampling(inputs, targets, masks, threshold, sample_num):
@@ -198,18 +199,6 @@ class VNLoss(nn.Module):
 
         return loss
 
-def gradient_1order(x,h_x=None,w_x=None):
-    x = x.view(x.shape[0],1,x.shape[1],x.shape[2])
-    if h_x is None and w_x is None:
-        h_x = x.size()[2]
-        w_x = x.size()[3]
-    r = F.pad(x, (0, 1, 0, 0))[:, :, :, 1:]
-    l = F.pad(x, (1, 0, 0, 0))[:, :, :, :w_x]
-    t = F.pad(x, (0, 0, 1, 0))[:, :, :h_x, :]
-    b = F.pad(x, (0, 0, 0, 1))[:, :, 1:, :]
-    xgrad = (torch.pow((r - l), 2) + torch.pow((t - b), 2)) / 4
-    return xgrad[:,0]
-
 class FinalLoss(nn.Module):
     def __init__(self, max_depth=10):
         super(FinalLoss, self).__init__()
@@ -222,17 +211,15 @@ class FinalLoss(nn.Module):
         mask = (gt > self.t_valid).detach()
         gt = torch.clamp(gt, max=self.max_depth)
         pred = torch.clamp(pred, min=0, max=self.max_depth)
-
         diff = torch.abs(pred[mask] - gt[mask])
         loss = diff.mean() 
 
         if eval_confidence:
-            ddiff = None
             mask_2 = (self.pool(-gt) < 0).detach()
-            gt_tv = gradient_1order(gt)
-            pred_tv = gradient_1order(pred)
-            ddiff = (gt_tv[mask_2] - pred_tv[mask_2]).abs()
-            loss += ddiff.mean() * 0.3
+            grad = spatial_gradient(torch.cat([gt,pred],dim=1), mode = 'diff',normalized=False)
+            ddiff = (grad[:,0:1] - grad[:,1:2]).abs().sum(dim=2)
+            ddiff = ddiff[mask_2]
+            loss += ddiff.mean() * 0.1
 
         if eval_confidence:
             abs_rel = diff / gt[mask] 

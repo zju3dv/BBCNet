@@ -30,8 +30,8 @@ class BaseDataset(Dataset):
         
         self.count = 0
         linear_transform = [
-            A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
             A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
+            A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
             # A.ShiftScaleRotate
         ]
         self.linear_transform = linear_transform    
@@ -44,7 +44,7 @@ class BaseDataset(Dataset):
             ToGrayCustom(always_apply=True),
             A.RandomBrightnessContrast(),
             A.RandomGamma(),
-            A.GaussNoise()
+            # A.GaussNoise()
         ]
         self.basic_transform = basic_transform    
         self.brightness_transform = brightness_transform    
@@ -125,17 +125,16 @@ class BaseDataset(Dataset):
             image = augmented['image']
             self.count += 1
 
-            imask = (depth < 1e-3).astype('uint8') * 127
+            # imask = (depth < 1e-3).astype('uint8') * 127
             origin_h = image.shape[1]
-            additional_targets = {'depth': 'mask', 'imask':'mask'}
+            additional_targets = {'depth': 'mask'} # for mask type, neareast interpolation is used
             aug0 = A.Compose(transforms=self.linear_transform,
                             additional_targets=additional_targets)
-            augmented = aug0(image=image, depth=depth,imask = imask)
+            augmented = aug0(image=image, depth=depth)
             image = augmented['image']
-            imask = augmented['imask']
+            # imask = augmented['imask']
             depth = augmented['depth']
-            imask = imask > 0
-            depth[imask] = 0
+            # depth[imask > 0] = 0
             resized_h = image.shape[1]
             scale_factor = resized_h / origin_h
 

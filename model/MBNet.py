@@ -27,29 +27,27 @@ class DepthModel(nn.Module):
             self.down2 = nn.Identity()
         self.solver = DepthSolver()
 
+        self.encoder_infer = False
+        if args.with_confidence:
+            self.encoder_infer = True
+            self.encoder_modules.requires_grad_(False)
 
     def forward(self, x):
         out_base = []
-        if(x.shape[1] == 3):
-            sd = x[:,2:3,:,:].clone()
+        sd = x[:,2:3,:,:].clone()
+
+        if self.training:        
+            rgb = self.down1(x[:,0:1,:,:])
+            sd_map = self.down2(x[:,1:2,:,:])
+            x = torch.cat([rgb,sd_map,sd_map],dim=1)
+        if self.encoder_infer:
+            with torch.no_grad():
+                lateral_out = self.encoder_modules(x)
         else:
-            sd = x[:,1:2,:,:].clone()
-
-
-
-        rgb = self.down1(x[:,0:1,:,:])
-        sd_map = self.down2(x[:,1:2,:,:])
-        
-        x = torch.cat([rgb,sd_map,sd_map],dim=1)
-
-        lateral_out = self.encoder_modules(x)
+            lateral_out = self.encoder_modules(x)
         basis,confidence = self.decoder_modules(lateral_out)
 
-        if False:
-            out = self.upsample(torch.cat([x,confidence],dim=1))
-            return out
-        # return torch.cat([basis,confidence],dim=1)
-        confidence = confidence[:,0,:,:]
+        return torch.cat([basis,confidence],dim=1)
         with autocast(dtype=torch.float32):
             out,w_sum = self.solver(sd,basis)
         

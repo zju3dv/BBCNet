@@ -85,8 +85,12 @@ def main_worker(args, model):
     for name,para in model.named_parameters():
         writer.add_histogram(name, para.clone().cpu().data.numpy(),0)
 
+    start_epoch = 1
+    if args.with_confidence:
+        start_epoch = 15
+
     # Perform experiment
-    for epoch in range(1, args.epochs + 1):
+    for epoch in range(start_epoch, args.epochs + 1):
         print('\nEpoch: %03d - %03d' % (epoch, args.epochs))
 
         loss_train = train(train_loader, model, criterion_d, optimizer=optimizer, 
@@ -248,7 +252,10 @@ if __name__ == '__main__':
         model.encoder_modules.load_state_dict(checkpoint['model'],strict=False)
         print("convnext loaded at")
 
-    # checkpoint = torch.load('/mnt/cache/chuguanyi1/densedepth2/logs/nyudepthv2/0216204155_test/epoch_15_model_big.ckpt', map_location=torch.device('cpu'))
-    # model.load_state_dict(checkpoint,strict=False)
+    if train_args.with_confidence:
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0701144202_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
+        # model.load_state_dict(checkpoint,strict=True)
+        model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
+
 
     main_worker(train_args,model)
