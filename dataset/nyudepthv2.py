@@ -40,7 +40,7 @@ class nyudepthv2(BaseDataset):
         filename = img_path.split('/')[-2] + '_' + img_path.split('/')[-1]
         image = jpeg.JPEG(img_path).decode()
         depth = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED).astype('float32') / 1000.0
-        focal_length_orig = 519 if 'nyudepthv2_image' in filename else 578
+        focal_length_orig = 519 #if 'nyudepthv2_image' in filename else 578
         depth[depth > 20] = 0
 
         image, depth, focal_length = self.preprocess(image, depth, is_training=self.is_train,focal_length_orig=focal_length_orig)

@@ -47,7 +47,7 @@ class DepthModel(nn.Module):
             lateral_out = self.encoder_modules(x)
         basis,confidence = self.decoder_modules(lateral_out)
 
-        return torch.cat([basis,confidence],dim=1)
+        # return torch.cat([basis,confidence],dim=1)
         with autocast(dtype=torch.float32):
             out,w_sum = self.solver(sd,basis)
         

@@ -82,8 +82,8 @@ def main_worker(args, model):
     writer,log_dir = initilize_workspace(args)
     log_txt = os.path.join(log_dir, 'logs.txt')  
 
-    for name,para in model.named_parameters():
-        writer.add_histogram(name, para.clone().cpu().data.numpy(),0)
+    # for name,para in model.named_parameters():
+        # writer.add_histogram(name, para.clone().cpu().data.numpy(),0)
 
     start_epoch = 1
     if args.with_confidence:
@@ -96,10 +96,10 @@ def main_worker(args, model):
         loss_train = train(train_loader, model, criterion_d, optimizer=optimizer, 
                            epoch=epoch, args=args)
         
-        for name,para in model.named_parameters():
-            if para.requires_grad and not para.grad is None:
-                writer.add_histogram(name, para.clone().cpu().data.numpy(),epoch)
-                writer.add_histogram(name + '/grad', para.grad.cpu().data.numpy(),epoch)
+        # for name,para in model.named_parameters():
+        #     if para.requires_grad and not para.grad is None:
+        #         writer.add_histogram(name, para.clone().cpu().data.numpy(),epoch)
+        #         writer.add_histogram(name + '/grad', para.grad.cpu().data.numpy(),epoch)
 
         writer.add_scalar('Training loss', loss_train, epoch)
         if epoch % args.val_freq == 0:
@@ -144,6 +144,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             param_group['lr'] = current_lr
 
         input_RGB = batch['image'].cuda(non_blocking=True)
+
         depth_gt = batch['depth'].cuda(non_blocking=True)
         focal_length = batch['focal_length'].cuda(non_blocking=True)
         with autocast(enabled=True):

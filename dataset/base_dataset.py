@@ -30,8 +30,8 @@ class BaseDataset(Dataset):
         
         self.count = 0
         linear_transform = [
-            A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
             A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
+            A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
             # A.ShiftScaleRotate
         ]
         self.linear_transform = linear_transform    
@@ -57,7 +57,7 @@ class BaseDataset(Dataset):
         n_kpt = len(all_kpts)
         min_n = 50#max(50,60 + 6*(10-self.epoch))#int(1440 * (0.9648 ** self.epoch))
         max_n = 200#max(120,120 + 12*(10-self.epoch))#int(1600 * (0.97265 ** self.epoch))
-        if(n_kpt == 0):
+        if(n_kpt < 18):
             return np.zeros_like(depth),np.zeros_like(depth)
         
         if(n_kpt > max_n * 2):
@@ -65,10 +65,10 @@ class BaseDataset(Dataset):
         else:
             sparse_kpts = all_kpts
 
-        if n_sample_kpt is None:
-            n_sample_kpt = n_kpt if n_kpt <= min_n else random.randint(min_n,min(max_n,n_kpt))
-        else:
+        if self.is_training:
             n_sample_kpt = min(n_kpt,n_sample_kpt)
+        else:
+            n_sample_kpt = n_kpt if n_kpt <= min_n else random.randint(min_n,min(max_n,n_kpt))
 
         sample_kpts = random.sample(sparse_kpts,n_sample_kpt)
 
@@ -85,19 +85,20 @@ class BaseDataset(Dataset):
         noise_level = 0.07
         if ADD_NOISE:
             sparse_depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
-            gtd = np.zeros_like(depth)
-            gtd[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]]
-            sparse_depth[sparse_depth==0] = gtd[sparse_depth==0]
-            sparse_depth = sparse_depth + sparse_depth * np.random.randn(sparse_depth.shape[0],sparse_depth.shape[1]) * noise_level
+            sd_val = sparse_depth[sparse_depth>0]
+            sparse_depth[sparse_depth > 0] += sd_val * np.random.randn(sd_val.shape[0]) * noise_level
+            # sparse_depth = sparse_depth + sparse_depth * 
         else:
             sparse_depth[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
         
         USE_DIFF_KPTS = True 
-        if USE_DIFF_KPTS:
+        if self.is_training and USE_DIFF_KPTS:
             sample_kpts = random.sample(all_kpts,n_sample_kpt)
             sample_pts = np.array([item.pt for item in sample_kpts]).astype(np.int32)
-        gt_sd = np.zeros_like(depth)
-        gt_sd[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
+            gt_sd = np.zeros_like(depth)
+            gt_sd[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
+        else:
+            gt_sd = sparse_depth
         return sparse_depth,gt_sd
 
     def getSparseDepthRandom(self,image,depth,n_sample_kpt = None):
@@ -118,7 +119,7 @@ class BaseDataset(Dataset):
     def preprocess(self, image, depth,is_training = False,focal_length_orig = None):
         scale_factor = 1
         self.is_training = is_training
-        deterministic_rand = None
+        deterministic_rand = 125
         if is_training:
             aug2 = A.Compose(transforms=self.brightness_transform)
             augmented = aug2(image=image)
@@ -144,8 +145,7 @@ class BaseDataset(Dataset):
             augmented = aug1(image=image, depth=depth)
             image = augmented['image']
             depth = augmented['depth']
-        else:
-            deterministic_rand = 125
+
         focal_length = focal_length_orig * scale_factor
 
         gray = image if self.is_training else cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -163,16 +163,12 @@ class BaseDataset(Dataset):
                 l = int(alpha * W)
                 w = int(max((W - alpha * W) * beta * p, 1))
                 gray[:, l:l+w] = depth[:, l:l+w]/10 * int((random.random() * 0.2 + 0.8) * 255)
-        else:
-            USE_DIFF_KPTS_FOR_TEST = False
-            if not USE_DIFF_KPTS_FOR_TEST:
-                gt_depth = sparse_depth
             
+        depth_factor = (focal_length / 519) * 10
         image = np.zeros((H,W,3),np.float32)
         image[:,:,0] = gray.astype(np.float32) / 255
-        image[:,:,1] = sparse_depth
-        image[:,:,2] = gt_depth
-        image[:,:,1:] /= (focal_length / 519) * 10
+        image[:,:,1] = sparse_depth / depth_factor
+        image[:,:,2] = gt_depth / depth_factor
 
         image = self.to_tensor(image)
         depth = self.to_tensor(depth)
