@@ -254,7 +254,7 @@ if __name__ == '__main__':
         print("convnext loaded at")
 
     if train_args.with_confidence:
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0701144202_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0708214138_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
 

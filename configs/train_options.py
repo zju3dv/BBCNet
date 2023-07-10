@@ -34,6 +34,7 @@ class TrainOptions(BaseOptions):
         # experiment configs
         parser.add_argument('--epochs',      type=int,   default=150)
         parser.add_argument('--lr',          type=float, default=1e-3)
+        parser.add_argument('--export_onnx',   action='store_true')        
         
         parser.add_argument('--crop_h',  type=int, default=384)
         parser.add_argument('--crop_w',  type=int, default=512)        

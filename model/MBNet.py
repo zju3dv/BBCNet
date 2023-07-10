@@ -27,19 +27,20 @@ class DepthModel(nn.Module):
             self.down2 = nn.Identity()
         self.solver = DepthSolver()
 
+        self.export_onnx = args.export_onnx
         self.encoder_infer = False
-        if args.with_confidence:
-            self.encoder_infer = True
-            self.encoder_modules.requires_grad_(False)
+        # if args.with_confidence:
+            # self.encoder_infer = True
+            # self.encoder_modules.requires_grad_(False)
 
     def forward(self, x):
         out_base = []
-        sd = x[:,2:3,:,:].clone()
+        if not self.export_onnx:
+            sd = x[:,2:3,:,:].clone()
 
         if self.training:        
-            rgb = self.down1(x[:,0:1,:,:])
             sd_map = self.down2(x[:,1:2,:,:])
-            x = torch.cat([rgb,sd_map,sd_map],dim=1)
+            x[:,2:3] = sd_map
         if self.encoder_infer:
             with torch.no_grad():
                 lateral_out = self.encoder_modules(x)
@@ -47,7 +48,8 @@ class DepthModel(nn.Module):
             lateral_out = self.encoder_modules(x)
         basis,confidence = self.decoder_modules(lateral_out)
 
-        # return torch.cat([basis,confidence],dim=1)
+        if self.export_onnx:
+            return torch.cat([basis,confidence],dim=1)
         with autocast(dtype=torch.float32):
             out,w_sum = self.solver(sd,basis)
         

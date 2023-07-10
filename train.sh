@@ -1,3 +1,3 @@
 # export HOME=/mnt/cache/$USER
 # python train224.py --dataset nyudepthv2 --data_path /mnt/lustre/share_data/chuguanyi/scannet/public_datalist_185/ --max_depth 10.0 --max_depth_eval 10.0 --save_result --epochs 25 --save_model --batch_size 64 --workers 8
-CUDA_VISIBLE_DEVICES=0 python train224_single_gpu.py --dataset nyudepthv2 --data_path /mnt/lustre/share_data/chuguanyi/scannet/public_datalist_185/ --max_depth 10.0 --max_depth_eval 10.0 --save_result --epochs 25 --batch_size 64 --save_model --workers 16 #--with_confidence
+CUDA_VISIBLE_DEVICES=1 python train224_single_gpu.py --dataset nyudepthv2 --data_path /mnt/lustre/share_data/chuguanyi/scannet/public_datalist_185/ --max_depth 10.0 --max_depth_eval 10.0 --save_result --epochs 25 --batch_size 64 --save_model --workers 8 --with_confidence

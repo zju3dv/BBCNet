@@ -44,7 +44,7 @@ class BaseDataset(Dataset):
             ToGrayCustom(always_apply=True),
             A.RandomBrightnessContrast(),
             A.RandomGamma(),
-            # A.GaussNoise()
+            A.GaussNoise()
         ]
         self.basic_transform = basic_transform    
         self.brightness_transform = brightness_transform    
@@ -53,19 +53,21 @@ class BaseDataset(Dataset):
 
     def getSparseDepth(self,image,depth,n_sample_kpt = None):
         all_kpts = list(fast_detector.detect(image, (depth > 0).astype(np.uint8)))
-        all_kpts.sort(key=lambda kp:kp.response,reverse=True)
         n_kpt = len(all_kpts)
-        min_n = 50#max(50,60 + 6*(10-self.epoch))#int(1440 * (0.9648 ** self.epoch))
-        max_n = 200#max(120,120 + 12*(10-self.epoch))#int(1600 * (0.97265 ** self.epoch))
         if(n_kpt < 18):
             return np.zeros_like(depth),np.zeros_like(depth)
+        all_kpts.sort(key=lambda kp:kp.response,reverse=True)
+        # min_n = max(50,50 + 50*(10-self.epoch))#int(1440 * (0.9648 ** self.epoch))
+        min_n = 50#max(50,60 + 6*(10-self.epoch))#int(1440 * (0.9648 ** self.epoch))
+        max_n = 200#max(120,120 + 12*(10-self.epoch))#int(1600 * (0.97265 ** self.epoch))
+        # max_n = max(200,200 + 50*(10-self.epoch))#int(1600 * (0.97265 ** self.epoch))
         
         if(n_kpt > max_n * 2):
             sparse_kpts = all_kpts[0:max_n * 2]
         else:
             sparse_kpts = all_kpts
 
-        if self.is_training:
+        if not self.is_training:
             n_sample_kpt = min(n_kpt,n_sample_kpt)
         else:
             n_sample_kpt = n_kpt if n_kpt <= min_n else random.randint(min_n,min(max_n,n_kpt))
@@ -84,6 +86,10 @@ class BaseDataset(Dataset):
         ADD_NOISE = True#True if self.is_training else False
         noise_level = 0.07
         if ADD_NOISE:
+            # mask = depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] > 0
+            # sparse_depth[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] * (~mask).astype(np.uint8) \
+            #     + depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] * mask.astype(np.uint8)
+            
             sparse_depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
             sd_val = sparse_depth[sparse_depth>0]
             sparse_depth[sparse_depth > 0] += sd_val * np.random.randn(sd_val.shape[0]) * noise_level
