@@ -44,7 +44,7 @@ class BaseDataset(Dataset):
             ToGrayCustom(always_apply=True),
             A.RandomBrightnessContrast(),
             A.RandomGamma(),
-            A.GaussNoise()
+            # A.GaussNoise()
         ]
         self.basic_transform = basic_transform    
         self.brightness_transform = brightness_transform    
@@ -134,7 +134,7 @@ class BaseDataset(Dataset):
 
             imask = (depth > 0).astype(np.float32)  #(depth < 1e-3).astype('uint8') * 127
             origin_h = image.shape[1]
-            additional_targets = {'depth': 'image'} # for mask type, neareast interpolation is used
+            additional_targets = {'depth': 'mask'} # for mask type, neareast interpolation is used
             # additional_targets = {'depth': 'image','imask' :'image'} # for mask type, neareast interpolation is used
             aug0 = A.Compose(transforms=self.linear_transform,
                             additional_targets=additional_targets)
