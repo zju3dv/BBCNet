@@ -155,13 +155,16 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             preds = preds * (focal_length.view(preds.shape[0], 1, 1, 1) / 519)
 
             loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence) * 1.1
+            real_loss = loss_d.item()
+            depth_loss.update(real_loss, input_RGB.size(0))
 
-            loss_d = loss_d +  sum_w  * 0.01
+            loss_d = loss_d  +  sum_w  * 0.01
             loss_d = loss_d.mean()
-
+        if torch.isnan(loss_d):
+            print('hit')
+            continue
         scaler.scale(loss_d).backward()
-        real_loss = loss_d.item()
-        depth_loss.update(real_loss, input_RGB.size(0))
+
         logging.progress_bar(batch_idx, len(train_loader), args.epochs, epoch,
                             ('Depth Loss: %.4f,%.4f (%.4f)' %
                             (depth_loss.val, sum_w.mean().item()  * 0.01,depth_loss.avg)))

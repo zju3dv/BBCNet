@@ -132,15 +132,18 @@ class BaseDataset(Dataset):
             image = augmented['image']
             self.count += 1
 
-            # imask = (depth < 1e-3).astype('uint8') * 127
+            imask = (depth > 0).astype(np.float32)  #(depth < 1e-3).astype('uint8') * 127
             origin_h = image.shape[1]
-            additional_targets = {'depth': 'mask'} # for mask type, neareast interpolation is used
+            additional_targets = {'depth': 'image'} # for mask type, neareast interpolation is used
+            # additional_targets = {'depth': 'image','imask' :'image'} # for mask type, neareast interpolation is used
             aug0 = A.Compose(transforms=self.linear_transform,
                             additional_targets=additional_targets)
-            augmented = aug0(image=image, depth=depth)
+            augmented = aug0(image=image, depth=depth, imask = imask)
             image = augmented['image']
             # imask = augmented['imask']
             depth = augmented['depth']
+            # mask = imask  > 0
+            # depth[mask] /= imask[mask]
             # depth[imask > 0] = 0
             resized_h = image.shape[1]
             scale_factor = resized_h / origin_h
