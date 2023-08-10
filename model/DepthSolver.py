@@ -8,7 +8,9 @@ class DepthSolver(nn.Module):
         super().__init__()
         self.prior = 1e-5
 
+    # @torch.autocast(dtype=torch.float32,device_type='cuda')
     def forward(self,sparse_depth,x):
+
         B,C,H,W = x.shape
         diag = self.prior * torch.eye(C,C,device = x.device) # for numberical stablity
         fb = self.prior * torch.ones(C,1,device = x.device) # for numberical stablity
@@ -25,6 +27,7 @@ class DepthSolver(nn.Module):
         sd = sorted_sd.contiguous().detach() # B X N X 1
         f_sparse_sorted = torch.gather(x_flatten,dim=1,index=sorted_indices.repeat(1,1,C))
         f_sparse = f_sparse_sorted * (sd > 0).expand_as(f_sparse_sorted).detach()
+
         FTF = torch.bmm(f_sparse.mT, f_sparse) # B X C X C
         FTF = FTF + diag
         eigval = torch.linalg.eigvalsh(FTF)
@@ -40,6 +43,7 @@ class DepthSolver(nn.Module):
         # print(final_depth.shape)
         final_depth = final_depth.view(B,1,H,W)
         cond_sum = condition_number.mean() + (weight - 1).abs().mean()
+        # print(f_sparse.mean(),x_flatten.mean(),(sd > 0).sum(dim=(-1,-2)).min().item())
         return final_depth,cond_sum
 
 

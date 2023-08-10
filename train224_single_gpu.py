@@ -77,7 +77,7 @@ def main_worker(args, model):
     # Training settings
     criterion_d = FinalLoss()
     # optimizer = optim.Adam(model.parameters()) #, args.lr,weight_decay=1e-8)
-    optimizer = optim.AdamW(model.parameters(), args.lr,weight_decay=3e-7)
+    optimizer = optim.AdamW(model.parameters(), args.lr,weight_decay=3e-7)#, eps=1e-3)
 
     writer,log_dir = initilize_workspace(args)
     log_txt = os.path.join(log_dir, 'logs.txt')  
@@ -88,6 +88,12 @@ def main_worker(args, model):
     start_epoch = 1
     if args.with_confidence:
         start_epoch = 15
+
+    if False:
+        start_epoch = 11
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0809013337_test/epoch_10_opt.ckpt', map_location=torch.device('cpu'))
+        # model.load_state_dict(checkpoint,strict=True)
+        optimizer.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()})
 
     # Perform experiment
     for epoch in range(start_epoch, args.epochs + 1):
@@ -123,6 +129,20 @@ def main_worker(args, model):
             for each_metric, each_results in results_dict.items():
                 writer.add_scalar(each_metric, each_results, epoch)
 
+
+def clip_gradient(optimizer, grad_clip):
+    """
+    Clips gradients computed during backpropagation to avoid explosion of gradients.
+
+    :param optimizer: optimizer with the gradients to be clipped
+    :param grad_clip: clip value
+    """
+    for group in optimizer.param_groups:
+        print(group.keys())
+        for param in group["params"]:
+            if param.grad is not None:
+                param.grad.data.clamp_(-grad_clip, grad_clip)
+
 def train(train_loader, model, criterion_d, optimizer, epoch, args):    
     model.train()
     depth_loss = logging.AverageMeter()
@@ -149,7 +169,6 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
         focal_length = batch['focal_length'].cuda(non_blocking=True)
         with autocast(enabled=True):
             optimizer.zero_grad()
-
             preds,confidence,sum_w = model(input_RGB)
             # preds = preds[:,0,:,:]
             preds = preds * (focal_length.view(preds.shape[0], 1, 1, 1) / 519)
@@ -160,10 +179,16 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
 
             loss_d = loss_d  +  sum_w  * 0.01
             loss_d = loss_d.mean()
+
         if torch.isnan(loss_d):
-            print('hit')
-            continue
+            for name, param in model.named_parameters():
+                if param.grad is not None:
+                    print("param type:", name)  # torch.nn.parameter.Parameter
+                    print("param value:", torch.isinf(param).any(),torch.isnan(param).any())
+            exit(0)
         scaler.scale(loss_d).backward()
+
+
 
         logging.progress_bar(batch_idx, len(train_loader), args.epochs, epoch,
                             ('Depth Loss: %.4f,%.4f (%.4f)' %
@@ -257,9 +282,12 @@ if __name__ == '__main__':
         print("convnext loaded at")
 
     if train_args.with_confidence:
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0708214138_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0803191548_test/epoch_09_model_big.ckpt', map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
+    # checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0809013337_test/epoch_10_model_big.ckpt', map_location=torch.device('cpu'))
+    # model.load_state_dict(checkpoint,strict=True)
+    model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
 
 
     main_worker(train_args,model)

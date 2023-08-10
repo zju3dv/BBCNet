@@ -86,7 +86,8 @@ class Decoder(nn.Module):
         
         self.adapt_conv_short = nn.Sequential(
             nn.BatchNorm2d(num_features=self.outchannels ),
-            nn.Conv2d(self.outchannels , 24 + 18, kernel_size=1, stride=1, padding=0,bias=True),
+            nn.Conv2d(self.outchannels , 24 + 18, kernel_size=1, stride=1, padding=0,bias=False),
+            nn.BatchNorm2d(num_features=24 + 18 ),
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Conv2d(24 + 18,4 , kernel_size=1, stride=1, padding=0,bias=False),

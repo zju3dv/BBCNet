@@ -13,7 +13,7 @@ class BaseOptions():
         parser.add_argument('--dataset',      type=str, default='nyudepthv2',
                             choices=['nyudepthv2', 'imagepath', 'nyudepthh5'])
         parser.add_argument('--exp_name',     type=str, default='test')
-        parser.add_argument('--batch_size',   type=int, default=8)
+        parser.add_argument('--batch_size',   type=int, default=64)
         parser.add_argument('--workers',      type=int, default=8)
         
         # depth configs
@@ -32,7 +32,7 @@ class TrainOptions(BaseOptions):
         parser = BaseOptions.initialize(self)
 
         # experiment configs
-        parser.add_argument('--epochs',      type=int,   default=150)
+        parser.add_argument('--epochs',      type=int,   default=40)
         parser.add_argument('--lr',          type=float, default=1e-3)
         parser.add_argument('--export_onnx',   action='store_true')        
         
