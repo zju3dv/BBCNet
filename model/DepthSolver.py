@@ -8,7 +8,7 @@ class DepthSolver(nn.Module):
         super().__init__()
         self.prior = 1e-5
 
-    # @torch.autocast(dtype=torch.float32,device_type='cuda')
+    @torch.autocast(dtype=torch.float32,device_type='cuda')
     def forward(self,sparse_depth,x):
 
         B,C,H,W = x.shape
