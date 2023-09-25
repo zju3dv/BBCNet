@@ -42,7 +42,7 @@ class DepthSolver(nn.Module):
         final_depth = torch.bmm(weight.view(B,1,weight.shape[1]), x_flatten.mT)
         # print(final_depth.shape)
         final_depth = final_depth.view(B,1,H,W)
-        cond_sum = condition_number.mean() + (weight - 1).abs().mean()
+        cond_sum = condition_number.mean() + torch.clamp((weight - 1).abs().mean(),min=0.5) - 0.5
         # print(f_sparse.mean(),x_flatten.mean(),(sd > 0).sum(dim=(-1,-2)).min().item())
         return final_depth,cond_sum
 

@@ -222,8 +222,8 @@ class FinalLoss(nn.Module):
             loss += ddiff.mean() * 0.1
 
         if eval_confidence:
-            abs_rel = diff / gt[mask] 
-            abs_rel = torch.clamp(abs_rel * 5,0,1)
+            abs_rel = diff  #/ gt[mask] 
+            abs_rel = torch.clamp(abs_rel * 4,0,1)
             theta = torch.clamp(theta,1e-3,0.999)
             theta_mask = theta[mask]
             diff1 = theta_mask * diff

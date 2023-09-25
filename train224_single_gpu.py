@@ -61,15 +61,21 @@ def main_worker(args, model):
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
+
     # dataset_kwargs['crop_size'] = (224,448 )
     dataset_kwargs['crop_size'] = (448,576 )
-
+    start_epoch = 1
+    if args.with_confidence:
+        start_epoch = 20
+        dataset_kwargs['crop_size'] = (480,544 )
 
     train_dataset = get_dataset(**dataset_kwargs)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size,
                                                shuffle=True, num_workers=args.workers, 
                                                pin_memory=True, drop_last=True)
+    dataset_kwargs = {'dataset_name': 'nyudepthv2', 'data_path': args.data_path}
+    
     val_dataset = get_dataset(**dataset_kwargs, is_train=False)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size , shuffle=False,num_workers=args.workers,
                                             pin_memory=True)
@@ -85,13 +91,10 @@ def main_worker(args, model):
     # for name,para in model.named_parameters():
         # writer.add_histogram(name, para.clone().cpu().data.numpy(),0)
 
-    start_epoch = 1
-    if args.with_confidence:
-        start_epoch = 15
 
-    if False:
-        start_epoch = 11
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0809013337_test/epoch_10_opt.ckpt', map_location=torch.device('cpu'))
+    if train_args.resume:
+        start_epoch = 9
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0825153047_test/epoch_08_opt.ckpt', map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         optimizer.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()})
 
@@ -99,9 +102,9 @@ def main_worker(args, model):
     for epoch in range(start_epoch, args.epochs + 1):
         print('\nEpoch: %03d - %03d' % (epoch, args.epochs))
 
+        # for _ in range(5):
         loss_train = train(train_loader, model, criterion_d, optimizer=optimizer, 
-                           epoch=epoch, args=args)
-        
+                        epoch=epoch, args=args)
         # for name,para in model.named_parameters():
         #     if para.requires_grad and not para.grad is None:
         #         writer.add_histogram(name, para.clone().cpu().data.numpy(),epoch)
@@ -167,7 +170,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
 
         depth_gt = batch['depth'].cuda(non_blocking=True)
         focal_length = batch['focal_length'].cuda(non_blocking=True)
-        with autocast(enabled=True):
+        with autocast(enabled=False):
             optimizer.zero_grad()
             preds,confidence,sum_w = model(input_RGB)
             # preds = preds[:,0,:,:]
@@ -181,11 +184,9 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             loss_d = loss_d.mean()
 
         if torch.isnan(loss_d):
-            for name, param in model.named_parameters():
-                if param.grad is not None:
-                    print("param type:", name)  # torch.nn.parameter.Parameter
-                    print("param value:", torch.isinf(param).any(),torch.isnan(param).any())
-            exit(0)
+            print("nan loss !")
+            # exit(0)
+            continue
         scaler.scale(loss_d).backward()
 
 
@@ -282,12 +283,13 @@ if __name__ == '__main__':
         print("convnext loaded at")
 
     if train_args.with_confidence:
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0803191548_test/epoch_09_model_big.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0825201748_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
-    # checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/nyudepthv2/0809013337_test/epoch_10_model_big.ckpt', map_location=torch.device('cpu'))
-    # model.load_state_dict(checkpoint,strict=True)
-    model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
+    train_args.resume = False
+    if train_args.resume:
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0825153047_test/epoch_08_model_big.ckpt', map_location=torch.device('cpu'))
+        model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=True)
 
 
     main_worker(train_args,model)

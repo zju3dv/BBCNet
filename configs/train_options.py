@@ -11,7 +11,7 @@ class BaseOptions():
         parser.add_argument('--gpu_or_cpu',   type=str, default='gpu')
         parser.add_argument('--data_path',    type=str, default='/data/ssd1/')
         parser.add_argument('--dataset',      type=str, default='nyudepthv2',
-                            choices=['nyudepthv2', 'imagepath', 'nyudepthh5'])
+                            choices=['nyudepthv2', 'imagepath', 'lmdb_dataset'])
         parser.add_argument('--exp_name',     type=str, default='test')
         parser.add_argument('--batch_size',   type=int, default=64)
         parser.add_argument('--workers',      type=int, default=8)
@@ -35,6 +35,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--epochs',      type=int,   default=40)
         parser.add_argument('--lr',          type=float, default=1e-3)
         parser.add_argument('--export_onnx',   action='store_true')        
+        parser.add_argument('--resume',   action='store_true')        
         
         parser.add_argument('--crop_h',  type=int, default=384)
         parser.add_argument('--crop_w',  type=int, default=512)        
