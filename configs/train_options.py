@@ -15,6 +15,7 @@ class BaseOptions():
         parser.add_argument('--exp_name',     type=str, default='test')
         parser.add_argument('--batch_size',   type=int, default=64)
         parser.add_argument('--workers',      type=int, default=8)
+        parser.add_argument('--ckpt',      type=str, default='',help='model to load')
         
         # depth configs
         parser.add_argument('--max_depth',      type=float, default=10.0)

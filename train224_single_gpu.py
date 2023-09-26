@@ -60,7 +60,7 @@ def main_worker(args, model):
     model = torch.nn.DataParallel(model, device_ids=[0])
 
     # Dataset setting
-    dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
+    dataset_kwargs = {'dataset_name': args.dataset}
 
     # dataset_kwargs['crop_size'] = (224,448 )
     dataset_kwargs['crop_size'] = (448,576 )
@@ -74,7 +74,7 @@ def main_worker(args, model):
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size,
                                                shuffle=True, num_workers=args.workers, 
                                                pin_memory=True, drop_last=True)
-    dataset_kwargs = {'dataset_name': 'nyudepthv2', 'data_path': args.data_path}
+    dataset_kwargs = {'dataset_name': 'nyudepthv2'}
     
     val_dataset = get_dataset(**dataset_kwargs, is_train=False)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size , shuffle=False,num_workers=args.workers,
@@ -101,7 +101,6 @@ def main_worker(args, model):
     for epoch in range(start_epoch, args.epochs + 1):
         print('\nEpoch: %03d - %03d' % (epoch, args.epochs))
 
-        # for _ in range(5):
         loss_train = train(train_loader, model, criterion_d, optimizer=optimizer, 
                         epoch=epoch, args=args)
         # for name,para in model.named_parameters():

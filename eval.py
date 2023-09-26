@@ -31,7 +31,7 @@ def main_worker(args, model):
     model = torch.nn.DataParallel(model, device_ids=[0])
 
     # Dataset setting
-    dataset_kwargs = {'dataset_name': args.dataset, 'data_path': args.data_path}
+    dataset_kwargs = {'dataset_name': args.dataset}
 
     val_dataset = get_dataset(**dataset_kwargs, is_train=False)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size , shuffle=False,num_workers=args.workers,
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     eval_args = opt.initialize().parse_args()
     model = DepthModel(eval_args)
 
-    checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0825153047_test/epoch_08_model_big.ckpt', map_location=torch.device('cpu'))
+    checkpoint = torch.load(eval_args.ckpt, map_location=torch.device('cpu'))
     model.load_state_dict({k.replace('.module','').replace('._orig_mod.',''):v for k,v in checkpoint.items()},strict=True)
 
     main_worker(eval_args,model)

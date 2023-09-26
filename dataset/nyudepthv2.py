@@ -7,7 +7,7 @@ from dataset.base_dataset import BaseDataset
 
 
 class nyudepthv2(BaseDataset):
-    def __init__(self, data_path, filenames_path='./dataset/filenames/',
+    def __init__(self, filenames_path='./dataset/filenames/scannet/',
                  is_train=True, crop_size=(384, 512), scale_size=None):
         super().__init__(crop_size)
 
@@ -16,7 +16,7 @@ class nyudepthv2(BaseDataset):
         self.image_path_list = []
         self.depth_path_list = []
 
-        txt_path = os.path.join(filenames_path, 'scannet')
+        txt_path = filenames_path
         if is_train:
             txt_path += '/train.txt'
         else:
@@ -46,7 +46,6 @@ class nyudepthv2(BaseDataset):
         image, depth, focal_length = self.preprocess(image, depth, is_training=self.is_train,focal_length_orig=focal_length_orig)
 
         focal_length = torch.Tensor([focal_length])
-
         return {'image': image, 'depth': depth, 'filename': filename, 'focal_length' : focal_length}
 
 
