@@ -75,14 +75,12 @@ class Decoder(nn.Module):
 
         self.conv = make_block(inchannels=self.inchannels[3], midchannels=self.midchannels[3])
         self.conv1 = nn.Conv2d(in_channels=self.midchannels[3], out_channels=self.midchannels[2], kernel_size=3, padding=1, stride=1, bias=True)
-        # self.conv1 = nn.Conv2d(in_channels=self.midchannels[3], out_channels=self.midchannels[2], kernel_size=3, padding=2, stride=1, dilation = 2, bias=True)
         self.upsample = nn.Upsample(scale_factor=self.upfactors[3], mode='bilinear', align_corners=False)
 
         self.ffmp2 = FFM(inchannels=self.inchannels[2], midchannels=self.midchannels[2], outchannels = self.midchannels[1], upfactor=self.upfactors[2])
         self.ffmp1 = FFM(inchannels=self.inchannels[1], midchannels=self.midchannels[1], outchannels = self.midchannels[0], upfactor=self.upfactors[1])
         self.ffmp0 = FFM(inchannels=self.inchannels[0], midchannels=self.midchannels[0], outchannels = self.midchannels[0], upfactor=self.upfactors[0])
         self.ffmp = FFM(self.midchannels[0], midchannels=self.midchannels[0], outchannels = self.outchannels, upfactor=1)
-        # self.ffmnp1 = FFM(inchannels=self.inchannels[0], midchannels=self.midchannels[0], outchannels = self.midchannels[0], upfactor=self.upfactors[0])
         
         self.adapt_conv_short = nn.Sequential(
             nn.BatchNorm2d(num_features=self.outchannels ),
@@ -137,7 +135,6 @@ class Decoder(nn.Module):
         x_4 = positionalencoding2d(x_4) + x_4 # down
 
         x_2 = self.ffmp0(features[0], x_4)  # 1/2
-        # x_2 = self.outconv(torch.cat((x_2,features[0]),dim=1))  # 1/2
         x_2_1 = self.ffmp(x_2,x_2)  # 1/2
 
         x = self.adapt_conv_short(x_2_1)

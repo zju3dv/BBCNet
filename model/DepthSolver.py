@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
 
-# TODO:
-# 1. add adaptor
 class DepthSolver(nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -33,17 +31,12 @@ class DepthSolver(nn.Module):
         eigval = torch.linalg.eigvalsh(FTF)
         condition_number = eigval[:,-1] / eigval[:,0]
         condition_number = torch.log(condition_number + 1) #* 16 / x.shape[1] #* x.shape[1] / 16
-        # print(FT.shape,sd.shape)
         FTD = torch.bmm(f_sparse.mT,sd)
         FTD = FTD + fb
-        # weight = torch.linalg.solve(FTF,FTD)
         weight = torch.linalg.solve(FTF,FTD)
-        # print(FTF.shape,weight.shape,eigval.shape,FTD.shape,f_sparse.shape)
         final_depth = torch.bmm(weight.view(B,1,weight.shape[1]), x_flatten.mT)
-        # print(final_depth.shape)
         final_depth = final_depth.view(B,1,H,W)
         cond_sum = condition_number.mean() + torch.clamp((weight - 1).abs().mean(),min=0.5) - 0.5
-        # print(f_sparse.mean(),x_flatten.mean(),(sd > 0).sum(dim=(-1,-2)).min().item())
         return final_depth,cond_sum
 
 

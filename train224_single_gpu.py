@@ -91,7 +91,6 @@ def main_worker(args, model):
     # for name,para in model.named_parameters():
         # writer.add_histogram(name, para.clone().cpu().data.numpy(),0)
 
-
     if train_args.resume:
         start_epoch = 9
         checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0825153047_test/epoch_08_opt.ckpt', map_location=torch.device('cpu'))
@@ -132,25 +131,10 @@ def main_worker(args, model):
             for each_metric, each_results in results_dict.items():
                 writer.add_scalar(each_metric, each_results, epoch)
 
-
-def clip_gradient(optimizer, grad_clip):
-    """
-    Clips gradients computed during backpropagation to avoid explosion of gradients.
-
-    :param optimizer: optimizer with the gradients to be clipped
-    :param grad_clip: clip value
-    """
-    for group in optimizer.param_groups:
-        print(group.keys())
-        for param in group["params"]:
-            if param.grad is not None:
-                param.grad.data.clamp_(-grad_clip, grad_clip)
-
 def train(train_loader, model, criterion_d, optimizer, epoch, args):    
     model.train()
     depth_loss = logging.AverageMeter()
 
-    # lr_schedule = cosine_scheduler(args.lr,1e-6,args.epochs, 1)
     lr_begin = 1e-3
     lr_end = 1e-5
     lr_schedule = cosine_scheduler(lr_begin,lr_end,args.epochs, 1)
@@ -189,8 +173,6 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             continue
         scaler.scale(loss_d).backward()
 
-
-
         logging.progress_bar(batch_idx, len(train_loader), args.epochs, epoch,
                             ('Depth Loss: %.4f,%.4f (%.4f)' %
                             (depth_loss.val, sum_w.mean().item()  * 0.01,depth_loss.avg)))
@@ -204,7 +186,6 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
 def validate(val_loader, model, criterion_d, epoch, args):
     depth_loss = logging.AverageMeter()
     model.eval()
-
 
     val_loader.dataset.epoch = 100
 
@@ -238,12 +219,11 @@ def validate(val_loader, model, criterion_d, epoch, args):
             computed_result = metrics.eval_depth(pred_crop, gt_crop)
 
             if args.save_result:
-                global result_dir
-                save_path = os.path.join(result_dir, filename)
-                pred_d_numpy = pred_d.cpu().numpy()
-                d_max = pred_d_numpy.max()
-                pred_d_numpy = ((pred_d_numpy ) / (d_max) * 255).astype(np.uint8)
                 if i == 0:
+                    global result_dir
+                    save_path = os.path.join(result_dir, filename)
+                    pred_d_numpy = pred_d.cpu().numpy() * 25 
+                    pred_d_numpy = pred_d_numpy.astype(np.uint8)
                     cv2.imwrite(save_path.replace('npy','jpg'), pred_d_numpy.astype(np.uint8))
             for key in result_metrics.keys():
                 result_metrics[key] += computed_result[key]
