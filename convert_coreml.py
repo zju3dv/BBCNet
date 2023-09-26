@@ -1,6 +1,6 @@
 import torch.onnx
 from configs.train_options import TrainOptions
-from model.MBNet import DepthModel
+from model.BBCNet import DepthModel
 import coremltools as ct
 
 def load_torch_model(model_path):
@@ -20,7 +20,7 @@ def load_torch_model(model_path):
 def main():
     print("starting")
     # model_path = "/mnt/cache/chuguanyi1/Workspace/dense_depth/logs/nyudepthv2/0906_test/epoch_16_model_big.ckpt"
-    model_path = "/home/chuguanyi/CommonDepth/logs/nyudepthv2/0709203225_test/epoch_25_model_big.ckpt"
+    model_path = "./logs/nyudepthv2/0709203225_test/epoch_25_model_big.ckpt"
     input = torch.randn(1, 3, 480, 640)
     # input1 = torch.randn([1, 1, 384, 512])
     model = load_torch_model(model_path)

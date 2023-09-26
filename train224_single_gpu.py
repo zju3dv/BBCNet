@@ -8,7 +8,7 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-from model.MBNet import DepthModel
+from model.BBCNet import DepthModel
 
 import utils.metrics as metrics
 from utils.criterion import FinalLoss
@@ -93,7 +93,7 @@ def main_worker(args, model):
 
     if train_args.resume:
         start_epoch = 9
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0825153047_test/epoch_08_opt.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load('./logs/lmdb_dataset/0825153047_test/epoch_08_opt.ckpt', map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         optimizer.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()})
 
@@ -262,12 +262,12 @@ if __name__ == '__main__':
         print("convnext loaded at")
 
     if train_args.with_confidence:
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0825201748_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load('./logs/lmdb_dataset/0825201748_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
     train_args.resume = False
     if train_args.resume:
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0825153047_test/epoch_08_model_big.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load('./logs/lmdb_dataset/0825153047_test/epoch_08_model_big.ckpt', map_location=torch.device('cpu'))
         model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=True)
 
 

@@ -1,14 +1,10 @@
 import os
-import cv2
 import sys
 import time
-import numpy as np
-
-import torch
 import shutil
 
 # _, term_width = os.popen('stty size', 'r').read().split()
-term_width = 173#int(term_width)
+term_width = 160#int(term_width)
 
 TOTAL_BAR_LENGTH = 30.
 last_time = time.time()
@@ -136,19 +132,6 @@ def display_result(result_dict):
     line += "=" * 100 + '\n'
 
     return line
-    
-
-def save_images(pred, save_path):
-    if len(pred.shape) > 3:
-        pred = pred.squeeze()
-
-    if isinstance(pred, torch.Tensor):
-        pred = pred.cpu().numpy().astype(np.uint8)
-
-    if pred.shape[0] < 4:
-        pred = np.transpose(pred, (1, 2, 0))
-    cv2.imwrite(save_path, pred, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-
 
 def check_and_make_dirs(paths):
     if not isinstance(paths, list):

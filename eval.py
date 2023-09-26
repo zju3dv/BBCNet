@@ -5,7 +5,7 @@ from datetime import datetime
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from model.MBNet import DepthModel
+from model.BBCNet import DepthModel
 
 import utils.metrics as metrics
 from utils.criterion import FinalLoss

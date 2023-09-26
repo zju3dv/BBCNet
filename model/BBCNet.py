@@ -41,9 +41,6 @@ class DepthModel(nn.Module):
         if self.training:        
             sd_map = self.down2(x[:,1:2,:,:])
             x[:,2:3] = sd_map
-        # print((sd_map < 0).sum())
-        # print(sd.max(),sd_map.max())
-        # print(sd.mean(),sd_map.mean())
         if self.encoder_infer:
             with torch.no_grad():
                 lateral_out = self.encoder_modules(x)
