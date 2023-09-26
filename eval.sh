@@ -1,1 +1,1 @@
-python eval.py --dataset nyudepthv2 --max_depth 10.0 --max_depth_eval 10.0 --save_result --ckpt /home/chuguanyi/CommonDepth/logs/nyudepthv2/0814204158_test/epoch_25_model_big.ckpt
+python eval.py --dataset nyudepthv2 --max_depth 10.0 --max_depth_eval 10.0 --ckpt /home/chuguanyi/CommonDepth/logs/nyudepthv2/0814204158_test/epoch_25_model_big.ckpt #--save_result 

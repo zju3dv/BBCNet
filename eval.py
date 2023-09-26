@@ -83,12 +83,11 @@ def validate(val_loader, model, criterion_d, epoch, args):
             computed_result = metrics.eval_depth(pred_crop, gt_crop)
 
             if args.save_result:
-                if i == 0:
-                    global result_dir
-                    save_path = os.path.join(result_dir, filename)
-                    pred_d_numpy = pred_d.cpu().numpy()
-                    pred_d_numpy = (pred_d_numpy  * 25).astype(np.uint8)
-                    cv2.imwrite(save_path.replace('npy','jpg'), pred_d_numpy.astype(np.uint8))
+                global result_dir
+                save_path = os.path.join(result_dir, filename)
+                pred_d_numpy = pred_d.cpu().numpy()
+                pred_d_numpy = (pred_d_numpy  * 25).astype(np.uint8)
+                cv2.imwrite(save_path.replace('npy','jpg'), pred_d_numpy.astype(np.uint8))
             for key in result_metrics.keys():
                 result_metrics[key] += computed_result[key]
         logging.progress_bar(batch_idx, len(val_loader), args.epochs, epoch)
