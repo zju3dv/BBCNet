@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch
 from torch import nn
 from kornia.utils import create_meshgrid
-import torch.nn.functional as F
 from kornia.filters import spatial_gradient
 
 def randomSampling2(inputs, targets, m, sample_num):
@@ -125,7 +124,7 @@ class FinalLoss(nn.Module):
 
         if eval_confidence:
             error = diff  #/ gt[mask] 
-            error = torch.clamp(error * 7,0,1)
+            error = torch.clamp(error * 5,0,1)
             theta = torch.clamp(theta,1e-3,0.999)
             theta_mask = theta[mask]
             diff1 = theta_mask * diff

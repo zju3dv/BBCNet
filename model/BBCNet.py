@@ -5,7 +5,6 @@ import torch.nn as nn
 from .MobileNetv3 import mobilenetv3_large
 from .DepthSolver import DepthSolver
 from .convnext import convnext_tiny
-from torch.cuda.amp import autocast, GradScaler
 
 class DepthModel(nn.Module):
     def __init__(self,args):
@@ -16,22 +15,12 @@ class DepthModel(nn.Module):
             self.encoder_modules = mobilenetv3_large()
         else:
             self.encoder_modules = convnext_tiny()
-            # raise "Not valid backbone"
         
         self.decoder_modules = network.Decoder(args)
-        if args.slam_infer:
-            self.down1 = nn.AvgPool2d(2,2,0)
-            self.down2 = nn.MaxPool2d(2,2)
-        else:
-            self.down1 = nn.Identity()
-            self.down2 = nn.Identity()
         self.solver = DepthSolver()
 
         self.export_onnx = args.export_onnx
         self.encoder_infer = False
-        # if args.with_confidence:
-            # self.encoder_infer = True
-            # self.encoder_modules.requires_grad_(False)
 
     def forward(self, x):
         out_base = []
@@ -39,9 +28,9 @@ class DepthModel(nn.Module):
             sd = x[:,2:3,:,:].clone()
 
         if self.training:        
-            sd_map = self.down2(x[:,1:2,:,:])
-            x[:,2:3] = sd_map
-        if self.encoder_infer:
+            x[:,2:3] = x[:,1:2,:,:]
+
+        if self.encoder_infer: # encoder module should be set to eval mode
             with torch.no_grad():
                 lateral_out = self.encoder_modules(x)
         else:

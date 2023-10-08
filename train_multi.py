@@ -252,8 +252,6 @@ def validate(val_loader, model, criterion_d, epoch, args):
 if __name__ == '__main__':
     # main()
     torch.backends.cudnn.benchmark = True
-    # 设置随机数种子
-    # setup_seed(7240)
     opt = TrainOptions()
     train_args = opt.initialize().parse_args()
     model = DepthModel(train_args)

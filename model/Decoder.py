@@ -13,6 +13,7 @@ def positionalencoding2d(input):
     :return: d_model*height*width position matrix
     """
     d_model, height, width = input.shape[1::]
+    
     if d_model % 4 != 0:
         raise ValueError("Cannot use sin/cos positional encoding with "
                          "odd dimension (got dim={:d})".format(d_model))
@@ -103,6 +104,8 @@ class Decoder(nn.Module):
             )
 
         self.n_infer = 0
+        self.export_onnx = args.export_onnx
+        self.pos_embed = positionalencoding2d(torch.zeros(1,self.midchannels[0],480 // 4,640 // 4))
 
         self._init_params()
         
@@ -132,7 +135,10 @@ class Decoder(nn.Module):
         x_8 = self.ffmp2(features[2], x_16)  # 1/8
 
         x_4 = self.ffmp1(features[1], x_8)  # 1/4
-        x_4 = positionalencoding2d(x_4) + x_4 # down
+        if self.export_onnx:
+            x_4 = self.pos_embed + x_4
+        else:
+            x_4 = positionalencoding2d(x_4) + x_4 # down
 
         x_2 = self.ffmp0(features[0], x_4)  # 1/2
         x_2_1 = self.ffmp(x_2,x_2)  # 1/2
