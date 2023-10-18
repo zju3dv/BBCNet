@@ -105,6 +105,6 @@ if __name__ == '__main__':
     model = DepthModel(eval_args)
 
     checkpoint = torch.load(eval_args.ckpt, map_location=torch.device('cpu'))
-    model.load_state_dict({k.replace('.module','').replace('._orig_mod.',''):v for k,v in checkpoint.items()},strict=True)
+    model.load_state_dict({k.replace('module.','').replace('_orig_mod.',''):v for k,v in checkpoint.items()},strict=True)
 
     main_worker(eval_args,model)

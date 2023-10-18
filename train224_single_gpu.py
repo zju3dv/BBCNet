@@ -92,8 +92,8 @@ def main_worker(args, model):
         # writer.add_histogram(name, para.clone().cpu().data.numpy(),0)
 
     if train_args.resume:
-        start_epoch = 9
-        checkpoint = torch.load('./logs/lmdb_dataset/0825153047_test/epoch_08_opt.ckpt', map_location=torch.device('cpu'))
+        start_epoch = 8
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/1013130232_test/epoch_07_opt.ckpt', map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         optimizer.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()})
 
@@ -159,7 +159,7 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             # preds = preds[:,0,:,:]
             preds = preds * (focal_length.view(preds.shape[0], 1, 1, 1) / 519)
 
-            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence) * 1.1
+            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence,focal_length) * 1.1
             real_loss = loss_d.item()
             depth_loss.update(real_loss, input_RGB.size(0))
 
@@ -257,12 +257,12 @@ if __name__ == '__main__':
         print("convnext loaded at")
 
     if train_args.with_confidence:
-        checkpoint = torch.load('./logs/lmdb_dataset/0825201748_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/1014133131_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
     train_args.resume = False
     if train_args.resume:
-        checkpoint = torch.load('./logs/lmdb_dataset/0825153047_test/epoch_08_model_big.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/1014133131_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
         model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=True)
 
 
