@@ -42,8 +42,8 @@ class VNLoss(nn.Module):
         super(VNLoss, self).__init__()
         self.point_pairs = point_pairs # number of point pairs
         self.mask_value = mask_value
-        h = 480
-        w = 640
+        # h,w = 448,576
+        h,w = 480,640
         proto_grid = create_meshgrid(h,w,normalized_coordinates=False).cuda() # (1, H, W, 2)
         proto_grid = proto_grid.reshape(1,-1,2) # (1, H* W, 2)
         proto_grid[:,:,0] = proto_grid[:,:,0] - w // 2
@@ -124,14 +124,14 @@ class FinalLoss(nn.Module):
             loss += ddiff.mean() * 0.1
 
         if eval_confidence:
-            # error = diff  #/ gt[mask] 
-            # error = torch.clamp(error * 5,0,1)
-            theta = torch.clamp(theta,1e-3,0.999) * 10
+            error = diff  #/ gt[mask] 
+            error = torch.clamp(error * 5,0,1)
+            theta = torch.clamp(theta,1e-3,0.999) #* 10
             theta_mask = theta[mask]
-            # diff1 = theta_mask * diff
-            # loss += -0.1*((1 - error) * torch.log(theta_mask) + \
-            #                   error * torch.log(1 - theta_mask)).mean()  + diff1.sum() / (theta_mask.sum()) * 0.1 
-            loss += 0.1 * (diff - theta[mask]).abs().mean()
+            diff1 = theta_mask * diff
+            loss += -0.1*((1 - error) * torch.log(theta_mask) + \
+                              error * torch.log(1 - theta_mask)).mean()  + diff1.sum() / (theta_mask.sum()) * 0.1 
+            # loss += 0.1 * (diff - theta[mask]).abs().mean()
             # loss += (torch.log(theta_mask.square())+ (diff / theta_mask).square()).mean() * 0.1
 
         return loss

@@ -29,9 +29,9 @@ def load_torch_model(model_path):
 def main():
     print("starting")
     # model_path = "/mnt/cache/chuguanyi1/Workspace/dense_depth/logs/nyudepthv2/0906_test/epoch_16_model_big.ckpt"
-    model_path = "/home/chuguanyi/CommonDepth/logs/lmdb_dataset/0926103700_test/epoch_25_model_big.ckpt"
+    model_path = "/mnt/afs1/chuguanyi1/densedepth2/logs/lmdb_dataset/1123194129_test/epoch_25_model_big.ckpt"
     onnx_filename = "model.onnx"
-    input = torch.randn([1, 3, 480, 736])
+    input = torch.randn([1, 3, 480, 640])
     # input1 = torch.randn([1, 1, 384, 512])
     model = load_torch_model(model_path)
     convert_torch_to_onnx(model, onnx_filename, input)

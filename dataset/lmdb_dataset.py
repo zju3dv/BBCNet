@@ -39,7 +39,7 @@ class lmdb_dataset(BaseDataset):
     def __getitem__(self, idx):
         img_path = self.filenames_list[idx]
         with h5py.File(img_path,'r') as f:
-            image = jpeg.JPEG(f['color'][:]).decode()
+            image = jpeg.JPEG(f['rgb'][:]).decode()
             depth = cv2.imdecode(f['depth'][:],-1)
             focal_length_orig = f['fx'][()]
         depth = depth / 1000
