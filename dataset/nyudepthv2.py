@@ -7,7 +7,7 @@ from dataset.base_dataset import BaseDataset
 
 
 class nyudepthv2(BaseDataset):
-    def __init__(self, filenames_path='./dataset/filenames/scannet/',
+    def __init__(self, filenames_path='./dataset/filenames/',
                  is_train=True, crop_size=(384, 512), scale_size=None):
         super().__init__(crop_size)
 
@@ -18,9 +18,9 @@ class nyudepthv2(BaseDataset):
 
         txt_path = filenames_path
         if is_train:
-            txt_path += '/train.txt'
+            txt_path += '/filelists.txt'
         else:
-            txt_path += '/valid.txt'
+            txt_path += '/nyu_val.txt'
             # txt_path += '/test_list.txt'
 
         self.is_cache = False

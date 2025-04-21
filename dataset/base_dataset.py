@@ -30,14 +30,18 @@ class BaseDataset(Dataset):
         
         self.count = 0
         linear_transform = [
-            A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
+            # A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
             A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
             # A.ShiftScaleRotate
         ]
-        self.linear_transform = linear_transform    
+        self.linear_transform = linear_transform   
         basic_transform = [
-            A.RandomCrop(crop_size[0], crop_size[1]),
+            # A.RandomCrop(crop_size[0], crop_size[1]),
+            A.CenterCrop(crop_size[0], crop_size[1]),
             A.HorizontalFlip(),
+        ]
+        test_transform = [
+            A.CenterCrop(crop_size[0], crop_size[1]),
         ]
         brightness_transform = [
             A.HueSaturationValue(),
@@ -46,7 +50,8 @@ class BaseDataset(Dataset):
             A.RandomGamma(),
             A.GaussNoise()
         ]
-        self.basic_transform = basic_transform    
+        self.basic_transform = basic_transform
+        self.test_transform = test_transform
         self.brightness_transform = brightness_transform    
         self.to_tensor = transforms.ToTensor()
         self.epoch = 0
@@ -154,10 +159,25 @@ class BaseDataset(Dataset):
             augmented = aug1(image=image, depth=depth)
             image = augmented['image']
             depth = augmented['depth']
+        else:
+            self.count += 1
+            additional_targets = {'depth': 'mask'}
+            aug1 = A.Compose(transforms=self.test_transform,
+                            additional_targets=additional_targets)
+            augmented = aug1(image=image, depth=depth)
+            image = augmented['image']
+            depth = augmented['depth']
 
         focal_length = focal_length_orig * scale_factor
+        # cv2.imwrite(f'test_image_aug-{self.count}.png', image)
+        # gray = image if self.is_training else cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        # if image is rgb, then convert to gray
+        gray = image if len(image.shape) == 2 else cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        # if self.is_training:
+        #     cv2.imwrite(f'train_image_aug-{self.count}.png', gray)
+        # else:
+        #     cv2.imwrite(f'test_image_aug-{self.count}.png', gray)
 
-        gray = image if self.is_training else cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         sparse_depth,gt_depth = self.getSparseDepth(gray,depth,deterministic_rand)
         if((sparse_depth>0).sum() < 18):
             sparse_depth,gt_depth = self.getSparseDepthRandom(gray,depth,random.randint(15,40))
@@ -183,3 +203,4 @@ class BaseDataset(Dataset):
         depth = self.to_tensor(depth)
         
         return image, depth, focal_length # depth is depth/focal_length in fact
+

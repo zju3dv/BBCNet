@@ -8,7 +8,7 @@ import h5py
 import cv2 
 
 class lmdb_dataset(BaseDataset):
-    def __init__(self, filenames_path='./dataset/filenames/scannet/',
+    def __init__(self, filenames_path='./dataset/filenames/',
                  is_train=True, crop_size=(384, 512), scale_size=None):
         super().__init__(crop_size)
 
@@ -19,9 +19,12 @@ class lmdb_dataset(BaseDataset):
 
         txt_path = filenames_path
         if is_train:
-            txt_path += '/train.txt'
+            # txt_path += '/train.txt'
+            txt_path += '/filelists.txt'
+            # txt_path += '/filelists-debug.txt'
         else:
-            txt_path += '/valid.txt'
+            # txt_path += '/valid.txt'
+            txt_path += '/nyu_val.txt'
             # txt_path += '/test_list.txt'
 
         self.is_cache = False
