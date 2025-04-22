@@ -88,6 +88,12 @@ def validate(val_loader, model, criterion_d, epoch, args):
                 pred_d_numpy = pred_d.cpu().numpy()
                 pred_d_numpy = (pred_d_numpy  * 25).astype(np.uint8)
                 cv2.imwrite(save_path.replace('npy','jpg'), pred_d_numpy.astype(np.uint8))
+
+                confidence_numpy = confidence[i][0].cpu().numpy() * 200
+                confidence_numpy = np.clip(confidence_numpy, 0, 255)
+                confidence_numpy = confidence_numpy.astype(np.uint8)
+                cv2.imwrite(save_path.replace('npy','jpg').replace('.jpg','-conf.jpg'), confidence_numpy.astype(np.uint8))
+
             for key in result_metrics.keys():
                 result_metrics[key] += computed_result[key]
         logging.progress_bar(batch_idx, len(val_loader), args.epochs, epoch)
@@ -105,6 +111,6 @@ if __name__ == '__main__':
     model = DepthModel(eval_args)
 
     checkpoint = torch.load(eval_args.ckpt, map_location=torch.device('cpu'))
-    model.load_state_dict({k.replace('module.','').replace('_orig_mod.',''):v for k,v in checkpoint.items()},strict=True)
+    model.load_state_dict({k.replace('module.','').replace('_orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
 
     main_worker(eval_args,model)

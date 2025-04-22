@@ -33,7 +33,6 @@ class BaseOptions():
         parser.add_argument('--use_vnl_loss', action='store_true')
         parser.add_argument('--use_fast_corner', action='store_true')
         parser.add_argument('--points_num', type=int, default = 125)
-        parser.add_argument('--depth_solver_prior', type=float, default=1e-4)
         parser.add_argument('--close_aug', action='store_true')
         parser.add_argument('--use_huber_weight', action='store_true')
         parser.add_argument('--use_last_bn_layer', action='store_true')
@@ -51,11 +50,12 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lr',          type=float, default=1e-3)
         parser.add_argument('--export_onnx',   action='store_true')        
         parser.add_argument('--resume',   action='store_true')        
+        parser.add_argument('--resume_path',   type=str, default='/nas/users/xieweijian/project/densedepth2/logs/lmdb_dataset/0207153055_test/epoch_24_model_big.ckpt')        
         parser.add_argument('--begin_lr',    type=float, default=1e-3)
         parser.add_argument('--end_lr',    type=float, default=1e-5)
         
-        parser.add_argument('--crop_h',  type=int, default=384)
-        parser.add_argument('--crop_w',  type=int, default=512)        
+        # parser.add_argument('--crop_h',  type=int, default=384)
+        # parser.add_argument('--crop_w',  type=int, default=512)        
         parser.add_argument('--log_dir', type=str, default='./logs') 
 
         # logging options
@@ -66,6 +66,6 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--dep_grad_loss_weight', type=float, default=0.1)
         parser.add_argument('--cond_loss_weight', type=float, default=0.1)
         parser.add_argument('--crit_loss_weight', type=float, default=1.1)
-        parser.add_argument('--grad_max', type=float, default=0)
+        parser.add_argument('--grad_max', type=float, default=-1.)
         parser.add_argument('--confidence_type', type=int, default='0')
         return parser

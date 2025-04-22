@@ -32,20 +32,20 @@ class BaseDataset(Dataset):
         self.count = 0
         if args.with_confidence:
             linear_transform = [
-                A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
+                # A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
                 A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
                 # A.ShiftScaleRotate
             ]
         else:
             linear_transform = [
-                # A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
+                A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
                 A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
                 # A.ShiftScaleRotate
             ]
         self.linear_transform = linear_transform    
         if not self.args.close_aug:
             if self.args.with_confidence:
-                test_transform = [
+                basic_transform = [
                     # A.RandomCrop(crop_size[0], crop_size[1]),
                     A.CenterCrop(crop_size[0], crop_size[1]),
                     A.HorizontalFlip(),
@@ -62,6 +62,9 @@ class BaseDataset(Dataset):
                 A.CenterCrop(crop_size[0], crop_size[1]),
                 A.HorizontalFlip(),
             ]
+        test_transform = [
+            A.CenterCrop(crop_size[0], crop_size[1]),
+        ]
         brightness_transform = [
             A.HueSaturationValue(),
             ToGrayCustom(always_apply=True),
@@ -202,7 +205,6 @@ class BaseDataset(Dataset):
         # else:
         #     cv2.imwrite(f'test_image_aug-{self.count}.png', gray)
 
-        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         if self.args.use_fast_corner:
             sparse_depth, gt_depth = self.getSparseDepth(gray, depth, deterministic_rand)
             if((sparse_depth>0).sum() < 18):

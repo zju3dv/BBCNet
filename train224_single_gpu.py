@@ -74,9 +74,9 @@ def main_worker(args, model):
     dataset_kwargs['crop_size'] = (args.crop_h, args.crop_w)
     dataset_kwargs['args'] = args
     start_epoch = 1
-    if args.with_confidence:
-        start_epoch = 20
-        dataset_kwargs['crop_size'] = (480,544 )
+    # if args.with_confidence:
+    #     start_epoch = 20
+    #     dataset_kwargs['crop_size'] = (480,544 )
 
     train_dataset = get_dataset(**dataset_kwargs)
 
@@ -100,11 +100,12 @@ def main_worker(args, model):
     # for name,para in model.named_parameters():
         # writer.add_histogram(name, para.clone().cpu().data.numpy(),0)
 
-    if train_args.resume:
-        start_epoch = 8
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/1013130232_test/epoch_07_opt.ckpt', map_location=torch.device('cpu'))
-        # model.load_state_dict(checkpoint,strict=True)
-        optimizer.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()})
+    # if train_args.resume:
+    #     start_epoch = 25 
+    #     # checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/1013130232_test/epoch_07_opt.ckpt', map_location=torch.device('cpu'))
+    #     checkpoint = torch.load('/nas/users/xieweijian/project/densedepth2/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
+    #     # model.load_state_dict(checkpoint,strict=True)
+    #     optimizer.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint['optimizer']},strict=False)
 
     # Perform experiment
     for epoch in range(start_epoch, args.epochs + 1):
@@ -252,6 +253,12 @@ def validate(val_loader, model, criterion_d, epoch, args):
                     pred_d_numpy = pred_d.cpu().numpy() * 25 
                     pred_d_numpy = pred_d_numpy.astype(np.uint8)
                     cv2.imwrite(save_path.replace('npy','jpg'), pred_d_numpy.astype(np.uint8))
+
+                    confidence_numpy = confidence[i][0].cpu().numpy() * 200
+                    confidence_numpy = np.clip(confidence_numpy, 0, 255)
+                    confidence_numpy = confidence_numpy.astype(np.uint8)
+                    cv2.imwrite(save_path.replace('npy','jpg').replace('.jpg','-conf.jpg'), confidence_numpy.astype(np.uint8))
+
             for key in result_metrics.keys():
                 result_metrics[key] += computed_result[key]
         logging.progress_bar(batch_idx, len(val_loader), args.epochs, epoch)
@@ -285,13 +292,13 @@ if __name__ == '__main__':
         print("convnext loaded at")
 
     if train_args.with_confidence:
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/1014133131_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
+        checkpoint = torch.load(train_args.ckpt, map_location=torch.device('cpu'))
         # model.load_state_dict(checkpoint,strict=True)
         model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
-    train_args.resume = False
-    if train_args.resume:
-        checkpoint = torch.load('/home/chuguanyi/CommonDepth/logs/lmdb_dataset/1014133131_test/epoch_25_model_big.ckpt', map_location=torch.device('cpu'))
-        model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=True)
-
+    elif train_args.resume:
+        checkpoint = torch.load(train_args.ckpt, map_location=torch.device('cpu'))
+        model.load_state_dict({k.replace('module._orig_mod.',''):v for k,v in checkpoint.items()},strict=False)
 
     main_worker(train_args,model)
+
+

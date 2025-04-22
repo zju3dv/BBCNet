@@ -4,10 +4,13 @@ import os
 import cv2
 import random
 from imagededup.methods import PHash
+import sys
 phasher = PHash()
 
-root_path = '/mnt/afs0/chuguanyi/scannet_train/'
-out_path = '/mnt/afs1/Group/chuguanyi1/scannetDB/'
+# root_path = '/mnt/afs0/chuguanyi/scannet_train/'
+# out_path = '/mnt/afs1/Group/chuguanyi1/scannetDB/'
+root_path = sys.argv[1] 
+out_path = sys.argv[2] 
 
 file_lists = root_path + '/filelist.txt'
 

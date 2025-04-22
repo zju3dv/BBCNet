@@ -14,24 +14,58 @@ conda activate bbcnet
 pip install -r requirements.txt
 ```
 
-## training
+## Data prepare
+Prepare your data as follows:
 
-1. 准备数据。图像用jpg格式保存，深度用同名的png格式保存。深度单位为mm，数据类型为uint16。无深度处赋值0
-2. 将图像的绝对路径写入train.txt和valid.txt两个文件里面，将这两个文件放进./dataset/filenames/scannet文件夹下
-3. 运行以下代码
-```
-CUDA_VISIBLE_DEVICES=$GPU_ID python train224_single_gpu.py --dataset lmdb_dataset --max_depth 10.0 --max_depth_eval 10.0 --save_result --epochs 25 --batch_size 64 --save_model --workers 8 
-```
-如果需要加入confidence，则加入 --with_confidence
+Prepare the data:
+Save the images in .jpg format, and save the corresponding depth maps in .png format with the same filenames.
 
-## evaluation
+The depth values should be in millimeters (mm), and the data type should be uint16.
 
-1. 按照上面的方式生成valid.txt文件
-2. 运行以下代码：
+Assign a value of 0 to areas without depth information.
+
+Generate file lists:
+Write the absolute paths of the images into two files: train.txt and valid.txt, and place them under the (./dataset/filenames/scannet directory).
+You can refer to the format of (dataset/filenames/nyu/nyu_val.txt) as an example.
+
+In addition to directly using image paths as input, to speed up training, the data can also be packed using h5py. You can use the following script to pack the data.
+The generated data should also include train.txt and valid.txt files in the same format as described above.
+You can refer to (dataset/filenames/scannet/train.txt) for the format.
 ```
-python eval.py --dataset nyudepthv2 --max_depth 10.0 --max_depth_eval 10.0 --ckpt /PATH/TO/CHECKPOINT #--save_result
+python data_preprocess/preprocess_scannet.py $src_data_path $out_h5py_path
 ```
-如需保存结果，则加入--save_result 。其中ckpt 为用于推理的模型文件名。结果保存在 logs 文件夹下
+
+## Download Model
+You can download our pre-trained model from [here](https://drive.google.com/drive/folders/1wr_H0p6k6nhU1UdOg4aCDKoxygw29_ue?usp=sharing)
+
+## Training
+```
+CUDA_VISIBLE_DEVICES=0 python train224_single_gpu.py --dataset lmdb_dataset --max_depth 20.0 \
+    --max_depth_eval 20.0 --save_result \
+    --epochs 25 --batch_size 32 --workers 8 --base_num 4 --exp_name res_34-rs \
+    --cond_loss_weight 0.0 --crit_loss_weight 1.1 --dep_grad_loss_weight 0.1 \
+    --log_dir $log_dir \
+    --use_fast_corner --points_num 125 --save_model
+```
+To include confidence, simply add the --with_confidence flag.
+
+## Evaluation
+
+Make sure the valid.txt file is prepared and placed in the correct directory.
+
+Run the following command:
+```
+CUDA_VISIBLE_DEVICES=0 python eval.py --dataset nyudepthv2 --max_depth 20.0 \
+    --max_depth_eval 20.0 --save_result \
+    --epochs 25 --batch_size 32 --workers 8 --base_num 4 --exp_name res_34-rs \
+    --cond_loss_weight 0.0 --crit_loss_weight 1.1 --dep_grad_loss_weight 0.1 \
+    --log_dir $log_dir \
+    --use_fast_corner --points_num 125 --resume --ckpt $ckpt_path  \
+    --with_confidence
+```
+To save the evaluation results, add the --save_result flag.
+The --ckpt option should point to the model checkpoint file used for inference.
+The results will be saved in the $log_dir directory.
 
 ## Citation
 If you find this code useful for your research, please use the following BibTeX entry.
