@@ -97,15 +97,16 @@ class VNLoss(nn.Module):
         return loss
 
 class FinalLoss(nn.Module):
-    def __init__(self, max_depth=10):
+    def __init__(self, args, max_depth=10):
         super(FinalLoss, self).__init__()
 
+        self.args = args
         self.max_depth = max_depth
         self.t_valid = 0.0001
         self.pool = torch.nn.MaxPool2d(kernel_size=3,stride=1,padding=1)
         self.vnl_loss = VNLoss()
 
-    def forward(self, pred, gt, theta, eval_confidence = True,focal_length = None):
+    def forward(self, pred, gt, theta, eval_dep_grad, eval_confidence = True,focal_length = None):
         mask = (gt > self.t_valid).detach()
         gt = torch.clamp(gt, max=self.max_depth)
         pred = torch.clamp(pred, min=0, max=self.max_depth)
@@ -114,23 +115,29 @@ class FinalLoss(nn.Module):
         # TODO:
         # 1. distance(to center) loss
         # 2. vnl loss
-        if focal_length is not None:
+        if focal_length is not None and self.args.use_vnl_loss:
             loss += self.vnl_loss(pred,gt,focal_length) * 0.2
-        if eval_confidence:
+        if eval_dep_grad:
             mask_2 = (self.pool(-gt) < 0).detach()
             grad = spatial_gradient(torch.cat([gt,pred],dim=1), mode = 'diff',normalized=False)
             ddiff = (grad[:,0:1] - grad[:,1:2]).abs().sum(dim=2)
             ddiff = ddiff[mask_2]
-            loss += ddiff.mean() * 0.1
+            loss += ddiff.mean() * self.args.dep_grad_loss_weight
 
         if eval_confidence:
-            error = diff  #/ gt[mask] 
-            error = torch.clamp(error * 5,0,1)
-            theta = torch.clamp(theta,1e-3,0.999) #* 10
-            theta_mask = theta[mask]
-            diff1 = theta_mask * diff
-            loss += -0.1*((1 - error) * torch.log(theta_mask) + \
-                              error * torch.log(1 - theta_mask)).mean()  + diff1.sum() / (theta_mask.sum()) * 0.1 
+            if self.args.confidence_type == '0':
+                error = diff  #/ gt[mask] 
+                error = torch.clamp(error * 5,0,1)
+                theta = torch.clamp(theta,1e-3,0.999) #* 10
+                theta_mask = theta[mask]
+                diff1 = theta_mask * diff
+                loss += -0.1*((1 - error) * torch.log(theta_mask) + \
+                                error * torch.log(1 - theta_mask)).mean()  + diff1.sum() / (theta_mask.sum()) * 0.1
+            elif self.args.confidence_type == '1':
+                theta = torch.clamp(theta,1e-3,0.999) #* 10
+                theta_mask = theta[mask]
+                diff1 = theta_mask * diff
+                loss += 0.1 * (diff1.sum() / (theta_mask.sum()) + 1 / (theta + 1))
             # loss += 0.1 * (diff - theta[mask]).abs().mean()
             # loss += (torch.log(theta_mask.square())+ (diff / theta_mask).square()).mean() * 0.1
 

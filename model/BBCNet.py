@@ -16,8 +16,9 @@ class DepthModel(nn.Module):
         else:
             self.encoder_modules = convnext_tiny()
         
+        self.args = args
         self.decoder_modules = network.Decoder(args)
-        self.solver = DepthSolver()
+        self.solver = DepthSolver(args)
 
         self.export_onnx = args.export_onnx
         self.encoder_infer = False

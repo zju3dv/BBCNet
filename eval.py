@@ -32,13 +32,13 @@ def main_worker(args, model):
 
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset}
-
+    dataset_kwargs['args'] = args
     val_dataset = get_dataset(**dataset_kwargs, is_train=False)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size , shuffle=False,num_workers=args.workers,
                                             pin_memory=True)
 
     # Training settings
-    criterion_d = FinalLoss()
+    criterion_d = FinalLoss(args)
 
     writer,log_dir = initilize_workspace(args)
     log_txt = os.path.join(log_dir, 'logs.txt')  

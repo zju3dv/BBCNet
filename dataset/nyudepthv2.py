@@ -7,14 +7,15 @@ from dataset.base_dataset import BaseDataset
 
 
 class nyudepthv2(BaseDataset):
-    def __init__(self, filenames_path='./dataset/filenames/',
+    def __init__(self, args, filenames_path='./dataset/filenames/nyudepthv2/',
                  is_train=True, crop_size=(384, 512), scale_size=None):
-        super().__init__(crop_size)
+        super().__init__(args, crop_size)
 
         self.is_train = is_train
 
         self.image_path_list = []
         self.depth_path_list = []
+        self.args = args
 
         txt_path = filenames_path
         if is_train:
@@ -41,7 +42,7 @@ class nyudepthv2(BaseDataset):
         image = jpeg.JPEG(img_path).decode()
         depth = cv2.imread(gt_path, cv2.IMREAD_UNCHANGED).astype('float32') / 1000.0
         focal_length_orig = 519 if 'nyudepthv2_image' in filename else 578
-        depth[depth > 20] = 0
+        depth[depth > self.args.max_depth] = 0
 
         image, depth, focal_length = self.preprocess(image, depth, is_training=self.is_train,focal_length_orig=focal_length_orig)
 

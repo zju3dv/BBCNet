@@ -8,7 +8,7 @@ import h5py
 import cv2 
 
 class lmdb_dataset(BaseDataset):
-    def __init__(self, filenames_path='./dataset/filenames/',
+    def __init__(self, args, filenames_path='./dataset/filenames/nyudepthv2/',
                  is_train=True, crop_size=(384, 512), scale_size=None):
         super().__init__(crop_size)
 
@@ -16,6 +16,7 @@ class lmdb_dataset(BaseDataset):
 
         self.image_path_list = []
         self.depth_path_list = []
+        self.args = args
 
         txt_path = filenames_path
         if is_train:
@@ -46,7 +47,7 @@ class lmdb_dataset(BaseDataset):
             depth = cv2.imdecode(f['depth'][:],-1)
             focal_length_orig = f['fx'][()]
         depth = depth / 1000
-        depth[depth > 20] = 0
+        depth[depth > self.args.max_depth] = 0
 
         image, depth, focal_length = self.preprocess(image, depth, is_training=self.is_train,focal_length_orig=focal_length_orig)
 

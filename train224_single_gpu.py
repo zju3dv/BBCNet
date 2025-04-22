@@ -62,8 +62,17 @@ def main_worker(args, model):
     # Dataset setting
     dataset_kwargs = {'dataset_name': args.dataset}
 
+    writer,log_dir = initilize_workspace(args)
+
+    print(f'initialize workspace {log_dir}')
+
+    log_txt = os.path.join(log_dir, 'logs.txt')
+    args.full_result_dir = log_dir
+    
     # dataset_kwargs['crop_size'] = (224,448 )
-    dataset_kwargs['crop_size'] = (448,576 )
+    # dataset_kwargs['crop_size'] = (224,288 )
+    dataset_kwargs['crop_size'] = (args.crop_h, args.crop_w)
+    dataset_kwargs['args'] = args
     start_epoch = 1
     if args.with_confidence:
         start_epoch = 20
@@ -75,18 +84,18 @@ def main_worker(args, model):
                                                shuffle=True, num_workers=args.workers, 
                                                pin_memory=True, drop_last=True)
     dataset_kwargs = {'dataset_name': 'nyudepthv2'}
+    dataset_kwargs['args'] = args
+    dataset_kwargs['crop_size'] = (args.crop_h, args.crop_w)
     
     val_dataset = get_dataset(**dataset_kwargs, is_train=False)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size , shuffle=False,num_workers=args.workers,
                                             pin_memory=True)
 
     # Training settings
-    criterion_d = FinalLoss()
+    criterion_d = FinalLoss(args)
     # optimizer = optim.Adam(model.parameters()) #, args.lr,weight_decay=1e-8)
     optimizer = optim.AdamW(model.parameters(), args.lr,weight_decay=3e-7)#, eps=1e-3)
 
-    writer,log_dir = initilize_workspace(args)
-    log_txt = os.path.join(log_dir, 'logs.txt')  
 
     # for name,para in model.named_parameters():
         # writer.add_histogram(name, para.clone().cpu().data.numpy(),0)
@@ -129,13 +138,14 @@ def main_worker(args, model):
 
             for each_metric, each_results in results_dict.items():
                 writer.add_scalar(each_metric, each_results, epoch)
+            print(f'write result to {log_dir}')
 
 def train(train_loader, model, criterion_d, optimizer, epoch, args):    
     model.train()
     depth_loss = logging.AverageMeter()
 
-    lr_begin = 1e-3
-    lr_end = 1e-5
+    lr_begin = args.begin_lr 
+    lr_end = args.end_lr 
     lr_schedule = cosine_scheduler(lr_begin,lr_end,args.epochs, 1)
 
     scaler = GradScaler()        
@@ -159,11 +169,13 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             # preds = preds[:,0,:,:]
             preds = preds * (focal_length.view(preds.shape[0], 1, 1, 1) / 519)
 
-            loss_d = criterion_d(preds, depth_gt, confidence, args.with_confidence,focal_length) * 1.1
+            loss_d = criterion_d(preds, depth_gt, confidence,
+                eval_dep_grad = True, eval_confidence = args.with_confidence,
+                focal_length = focal_length) * args.crit_loss_weight 
             real_loss = loss_d.item()
             depth_loss.update(real_loss, input_RGB.size(0))
 
-            loss_d = loss_d  +  sum_w  * 0.01
+            loss_d = loss_d + sum_w * args.cond_loss_weight
             loss_d = loss_d.mean()
 
         if torch.isnan(loss_d):
@@ -171,6 +183,20 @@ def train(train_loader, model, criterion_d, optimizer, epoch, args):
             # exit(0)
             continue
         scaler.scale(loss_d).backward()
+        # Gradient clipping
+        if args.grad_max > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=args.grad_max)
+            max_grad = -9999.
+            min_grad = 9999.
+            for param in model.parameters():
+                if param.grad is not None:
+                    if torch.isnan(param.grad).any():
+                        print(f'Param.grad: exist nan')
+                    if torch.isinf(param.grad).any():
+                        print(f'Param.grad: exist inf')
+                max_grad = torch.max(torch.tensor(max_grad), param.grad.max()).item()
+                min_grad = torch.min(torch.tensor(min_grad), param.grad.min()).item()
+            print(f'param.grad.max{max_grad} - min{min_grad}')
 
         logging.progress_bar(batch_idx, len(train_loader), args.epochs, epoch,
                             ('Depth Loss: %.4f,%.4f (%.4f)' %
@@ -202,7 +228,9 @@ def validate(val_loader, model, criterion_d, epoch, args):
         with torch.no_grad():
             preds,confidence,_ = model(input_RGB)
             preds = preds * (focal_length.view(preds.shape[0], 1, 1, 1) / 519)
-        loss_d = criterion_d(preds, depth_gt_ori,confidence,False).mean()
+        loss_d = criterion_d(
+            preds, depth_gt_ori, confidence,
+            eval_dep_grad = False, eval_confidence = False).mean()
 
         depth_loss.update(loss_d.item(), input_RGB.size(0))
 

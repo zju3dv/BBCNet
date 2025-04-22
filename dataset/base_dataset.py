@@ -26,23 +26,42 @@ class ToGrayCustom(ImageOnlyTransform):
         return ()
 
 class BaseDataset(Dataset):
-    def __init__(self, crop_size):
-        
+    def __init__(self, args, crop_size):
+
+        self.args = args 
         self.count = 0
-        linear_transform = [
-            # A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
-            A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
-            # A.ShiftScaleRotate
-        ]
-        self.linear_transform = linear_transform   
-        basic_transform = [
-            # A.RandomCrop(crop_size[0], crop_size[1]),
-            A.CenterCrop(crop_size[0], crop_size[1]),
-            A.HorizontalFlip(),
-        ]
-        test_transform = [
-            A.CenterCrop(crop_size[0], crop_size[1]),
-        ]
+        if args.with_confidence:
+            linear_transform = [
+                A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
+                A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
+                # A.ShiftScaleRotate
+            ]
+        else:
+            linear_transform = [
+                # A.RandomScale(scale_limit=(-0.05,0.15), interpolation=cv2.INTER_AREA, always_apply=True),
+                A.Rotate(limit=25,interpolation=cv2.INTER_LINEAR,border_mode=cv2.BORDER_CONSTANT,value=0),
+                # A.ShiftScaleRotate
+            ]
+        self.linear_transform = linear_transform    
+        if not self.args.close_aug:
+            if self.args.with_confidence:
+                test_transform = [
+                    # A.RandomCrop(crop_size[0], crop_size[1]),
+                    A.CenterCrop(crop_size[0], crop_size[1]),
+                    A.HorizontalFlip(),
+                ]
+            else:
+                basic_transform = [
+                    A.RandomCrop(crop_size[0], crop_size[1]),
+                    # A.CenterCrop(crop_size[0], crop_size[1]),
+                    A.HorizontalFlip(),
+                ]
+        else:
+            basic_transform = [
+                # A.RandomCrop(crop_size[0], crop_size[1]),
+                A.CenterCrop(crop_size[0], crop_size[1]),
+                A.HorizontalFlip(),
+            ]
         brightness_transform = [
             A.HueSaturationValue(),
             ToGrayCustom(always_apply=True),
@@ -57,7 +76,7 @@ class BaseDataset(Dataset):
         self.epoch = 0
 
     def getSparseDepth(self,image,depth,n_sample_kpt = None):
-        all_kpts = list(fast_detector.detect(image, (depth > 0).astype(np.uint8)))
+        all_kpts = list(fast_detector.detect(image, ((depth > 0) & (depth < self.args.max_depth)).astype(np.uint8)))
         n_kpt = len(all_kpts)
         if(n_kpt < 18):
             return np.zeros_like(depth),np.zeros_like(depth)
@@ -88,9 +107,9 @@ class BaseDataset(Dataset):
 
         sparse_depth = np.zeros_like(depth)
 
-        ADD_NOISE = True#True if self.is_training else False
-        noise_level = 0.07
-        if ADD_NOISE:
+        # ADD_NOISE = True #True if self.is_training else False
+        noise_level = self.args.depth_noise_level
+        if self.args.add_noise:
             # mask = depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] > 0
             # sparse_depth[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] * (~mask).astype(np.uint8) \
             #     + depth[sample_pts_noise[:,1],sample_pts_noise[:,0]] * mask.astype(np.uint8)
@@ -102,8 +121,8 @@ class BaseDataset(Dataset):
         else:
             sparse_depth[sample_pts[:,1],sample_pts[:,0]] = depth[sample_pts[:,1],sample_pts[:,0]] 
         
-        USE_DIFF_KPTS = True 
-        if self.is_training and USE_DIFF_KPTS:
+        # USE_DIFF_KPTS = True 
+        if self.is_training and self.args.use_diff_kpts:
             sample_kpts = random.sample(all_kpts,n_sample_kpt)
             sample_pts = np.array([item.pt for item in sample_kpts]).astype(np.int32)
             gt_sd = np.zeros_like(depth)
@@ -112,7 +131,7 @@ class BaseDataset(Dataset):
             gt_sd = sparse_depth
         return sparse_depth,gt_sd
 
-    def getSparseDepthRandom(self,image,depth,n_sample_kpt = None):
+    def getSparseDepthRandom(self,depth,n_sample_kpt = None):
         mask = depth.reshape(-1) > 0
         rdepth = depth.reshape(-1)
         all_points_idx = mask.nonzero()[0]
@@ -123,6 +142,9 @@ class BaseDataset(Dataset):
         mask_new[sample_inx] = 1
         mask_new = mask_new.reshape(depth.shape[0],depth.shape[1])
         sparse_depth = depth * mask_new.astype(np.uint8)
+        sparse_depth = sparse_depth
+        if self.args.add_noise:
+            sparse_depth += sparse_depth * np.random.randn(sparse_depth.shape[0],sparse_depth.shape[1]) * self.args.depth_noise_level
 
         return sparse_depth,sparse_depth
 
@@ -130,23 +152,25 @@ class BaseDataset(Dataset):
     def preprocess(self, image, depth,is_training = False,focal_length_orig = None):
         scale_factor = 1
         self.is_training = is_training
-        deterministic_rand = 125
+        deterministic_rand = self.args.points_num 
         if is_training:
-            aug2 = A.Compose(transforms=self.brightness_transform)
-            augmented = aug2(image=image)
-            image = augmented['image']
+            if not self.args.close_aug:
+                aug2 = A.Compose(transforms=self.brightness_transform)
+                augmented = aug2(image=image)
+                image = augmented['image']
             self.count += 1
 
             imask = (depth > 0).astype(np.float32)  #(depth < 1e-3).astype('uint8') * 127
             origin_h = image.shape[1]
             # additional_targets = {'depth': 'mask'} # for mask type, neareast interpolation is used
             additional_targets = {'depth': 'image','imask' :'image'} # for mask type, neareast interpolation is used
-            aug0 = A.Compose(transforms=self.linear_transform,
-                            additional_targets=additional_targets)
-            augmented = aug0(image=image, depth=depth, imask = imask)
-            image = augmented['image']
-            imask = augmented['imask']
-            depth = augmented['depth']
+            if not self.args.close_aug:
+                aug0 = A.Compose(transforms=self.linear_transform,
+                                additional_targets=additional_targets)
+                augmented = aug0(image=image, depth=depth, imask = imask)
+                image = augmented['image']
+                imask = augmented['imask']
+                depth = augmented['depth']
             mask = imask  > 0
             depth[mask] /= imask[mask]
             # depth[imask > 0] = 0
@@ -178,9 +202,13 @@ class BaseDataset(Dataset):
         # else:
         #     cv2.imwrite(f'test_image_aug-{self.count}.png', gray)
 
-        sparse_depth,gt_depth = self.getSparseDepth(gray,depth,deterministic_rand)
-        if((sparse_depth>0).sum() < 18):
-            sparse_depth,gt_depth = self.getSparseDepthRandom(gray,depth,random.randint(15,40))
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        if self.args.use_fast_corner:
+            sparse_depth, gt_depth = self.getSparseDepth(gray, depth, deterministic_rand)
+            if((sparse_depth>0).sum() < 18):
+                sparse_depth, gt_depth = self.getSparseDepthRandom(depth, random.randint(15,40))
+        else:
+            sparse_depth, gt_depth = self.getSparseDepthRandom(depth, deterministic_rand)
 
         H = image.shape[0]
         W = image.shape[1]
